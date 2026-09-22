@@ -21,6 +21,7 @@ class Esp32Gateway : public GatewayLink
     explicit Esp32Gateway(uint32_t selfNode);
     bool online() const override;
     bool uplink(const Message &msg) override;
+    bool hasRoom() const override;
     bool forwardPull(uint32_t fromNode, const uint8_t *pull, size_t len) override;
     void onDownlinkResult(uint32_t msgId, bool delivered) override {}
     void loop(uint32_t nowMs) override;
@@ -44,7 +45,7 @@ class Esp32Gateway : public GatewayLink
 
     uint32_t self;
     std::atomic<bool> backingOff{false};
-    concurrency::Lock lock;
+    mutable concurrency::Lock lock;
     std::deque<Job> jobs;
     std::vector<Result> results;
 };

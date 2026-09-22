@@ -3,6 +3,7 @@
 #include "OshiProtocol.h"
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace oshi
@@ -24,9 +25,11 @@ class PeerTable
 
     void onBeacon(uint32_t node, const BeaconFrame &b, uint8_t hops, uint32_t nowMs);
     // Nearest fresh custodian with room for bodyLen, excluding the destination and self. 0 if none.
-    uint32_t pickCustodian(uint32_t exclude, size_t bodyLen, uint32_t nowMs) const;
+    // usable: whether we can address that node directly (a unicast needs its key); null = any.
+    using Usable = std::function<bool(uint32_t)>;
+    uint32_t pickCustodian(uint32_t exclude, size_t bodyLen, uint32_t nowMs, const Usable &usable = nullptr) const;
     // Nearest fresh node whose beacon says its gateway is online. 0 if none.
-    uint32_t pickGateway(uint32_t nowMs) const;
+    uint32_t pickGateway(uint32_t nowMs, const Usable &usable = nullptr) const;
     bool isOshiNode(uint32_t node, uint32_t nowMs) const;
     const std::vector<Peer> &all() const { return peers; }
 

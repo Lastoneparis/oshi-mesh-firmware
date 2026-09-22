@@ -7,6 +7,7 @@
 #include "oshi/OshiOutbox.h"
 #include "oshi/OshiPeers.h"
 #include <deque>
+#include <map>
 
 // OSHI Mesh: reliable, fragmented, custody-backed messaging between OSHI nodes, carried as opaque
 // PRIVATE_APP frames on a private secondary channel so stock Meshtastic nodes relay it untouched.
@@ -48,6 +49,11 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     void toPhone(uint32_t from, const uint8_t *bytes, size_t len);
     void pumpPhone();
     bool peerUsesPki(uint32_t node) const;
+    // Whether a unicast to node will actually be sent as one (a DM needs the peer's key, except in the simulator).
+    bool canAddress(uint32_t node) const;
+    // Whether we can take a whole message of `count` fragments in this role before acknowledging it.
+    bool canHold(RxMode mode, uint8_t count) const;
+    void askForKey(uint32_t node, uint32_t now);
     // persist=false when the message is already in the inbox (restored at boot).
     void deliverToPhone(const oshi::Message &msg, bool persist = true);
     void statusToPhone(const oshi::StatusFrame &s);
@@ -71,6 +77,8 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     uint32_t lastPullMs = 0;
     bool pulledOnce = false;
     uint32_t pullAfterSeq = 0;
+    std::map<uint32_t, uint32_t> keyAskedMs;  // node -> last time we asked it for its key
+    std::map<uint32_t, uint32_t> custodianOf; // our msgId -> the custodian now holding it
 
     oshi::Outbox outbox;
     oshi::Reassembler rx;

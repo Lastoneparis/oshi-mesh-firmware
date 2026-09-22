@@ -74,6 +74,7 @@ class Outbox
         uint32_t lastTryMs = 0;
         bool toCustodian = false;
         bool persisted = false;
+        bool sentReported = false;
     };
 
     void finish(Entry &e, MsgState st, uint32_t node);

@@ -24,11 +24,12 @@ void PeerTable::onBeacon(uint32_t node, const BeaconFrame &b, uint8_t hops, uint
     peers.push_back({node, b.caps, b.custodyFreeKb, hops, nowMs});
 }
 
-uint32_t PeerTable::pickCustodian(uint32_t exclude, size_t bodyLen, uint32_t nowMs) const
+uint32_t PeerTable::pickCustodian(uint32_t exclude, size_t bodyLen, uint32_t nowMs, const Usable &usable) const
 {
     const Peer *best = nullptr;
     for (const auto &p : peers) {
-        if (p.node == exclude || !(p.caps & CAP_CUSTODIAN) || !isFresh(p, nowMs) || size_t(p.freeKb) * 1024 < bodyLen)
+        if (p.node == exclude || !(p.caps & CAP_CUSTODIAN) || !isFresh(p, nowMs) || size_t(p.freeKb) * 1024 < bodyLen ||
+            (usable && !usable(p.node)))
             continue;
         if (!best || p.hops < best->hops || (p.hops == best->hops && p.freeKb > best->freeKb))
             best = &p;
@@ -36,11 +37,11 @@ uint32_t PeerTable::pickCustodian(uint32_t exclude, size_t bodyLen, uint32_t now
     return best ? best->node : 0;
 }
 
-uint32_t PeerTable::pickGateway(uint32_t nowMs) const
+uint32_t PeerTable::pickGateway(uint32_t nowMs, const Usable &usable) const
 {
     const Peer *best = nullptr;
     for (const auto &p : peers) {
-        if (!(p.caps & CAP_GATEWAY_ONLINE) || !isFresh(p, nowMs))
+        if (!(p.caps & CAP_GATEWAY_ONLINE) || !isFresh(p, nowMs) || (usable && !usable(p.node)))
             continue;
         if (!best || p.hops < best->hops)
             best = &p;

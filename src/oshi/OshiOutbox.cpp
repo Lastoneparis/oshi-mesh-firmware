@@ -114,8 +114,10 @@ bool Outbox::nextFrame(uint32_t nowMs, Frame &out)
             if (!isUnicast(e)) {
                 finish(e, MsgState::SENT, 0);
             } else {
-                if (e.round == 0 && !e.toCustodian)
+                if (!e.sentReported && !e.toCustodian) {
+                    e.sentReported = true;
                     emit(e, MsgState::SENT, 0);
+                }
                 e.state = State::AWAIT_ACK;
                 e.deadline = nowMs + cfg.ackTimeoutBaseMs + cfg.ackTimeoutPerFragMs * e.count;
             }

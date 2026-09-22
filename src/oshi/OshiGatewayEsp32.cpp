@@ -46,6 +46,12 @@ bool Esp32Gateway::push(Job &&j)
     return true;
 }
 
+bool Esp32Gateway::hasRoom() const
+{
+    concurrency::LockGuard g(&lock);
+    return jobs.size() < MAX_JOBS;
+}
+
 bool Esp32Gateway::uplink(const Message &msg)
 {
     Job j;

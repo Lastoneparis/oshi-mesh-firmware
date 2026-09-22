@@ -9,6 +9,7 @@
 #include "airtime.h"
 #include "configuration.h"
 #include "main.h"
+#include "modules/NodeInfoModule.h"
 #include "mesh/Throttle.h"
 #include "mesh/Channels.h"
 #include "gps/RTC.h"
@@ -60,9 +61,11 @@ OshiModule::OshiModule() : MeshModule("oshi", meshtastic_PortNum_PRIVATE_APP), c
 {
     isPromiscuous = true; // every packet tells us a node is alive, which is what releases parked messages
     encryptedOk = true;
+    // Only nodes we can really address: a custody request or an uplink sent as a broadcast would be ignored.
+    auto usable = [this](uint32_t n) { return canAddress(n); };
     outbox.setCustodianPicker(
-        [this](const Message &m) { return peers.pickCustodian(m.dest, m.body.size(), Time::getMillis()); });
-    outbox.setGatewayPicker([this](const Message &) { return peers.pickGateway(Time::getMillis()); });
+        [this, usable](const Message &m) { return peers.pickCustodian(m.dest, m.body.size(), Time::getMillis(), usable); });
+    outbox.setGatewayPicker([this, usable](const Message &) { return peers.pickGateway(Time::getMillis(), usable); });
 }
 
 void OshiModule::initialize()
@@ -150,6 +153,43 @@ bool OshiModule::peerUsesPki(uint32_t node) const
            nodeDB->copyPublicKey(node, key) && key.size == 32;
 }
 
+bool OshiModule::canAddress(uint32_t node) const
+{
+    if (node == OMP_DEST_BROADCAST)
+        return false;
+#if ARCH_PORTDUINO
+    if (portduino_config.force_simradio)
+        return true; // the simulator carries channel-encrypted DMs
+#endif
+    return peerUsesPki(node);
+}
+
+bool OshiModule::canHold(RxMode mode, uint8_t count) const
+{
+    switch (mode) {
+    case RxMode::CUSTODY:
+        return custody.bytesFree() >= size_t(count) * OMP_MAX_FRAG_DATA + 16;
+    case RxMode::UPLINK:
+        return oshiGateway && oshiGateway->hasRoom();
+    case RxMode::DELIVER:
+        return true;
+    }
+    return false;
+}
+
+void OshiModule::askForKey(uint32_t node, uint32_t now)
+{
+    auto it = keyAskedMs.find(node);
+    if (it != keyAskedMs.end() && now - it->second < 30UL * 60 * 1000)
+        return;
+    if (keyAskedMs.size() > 64)
+        keyAskedMs.clear();
+    keyAskedMs[node] = now;
+    // Its NodeInfo carries its public key; without it every unicast to that node degrades to a broadcast.
+    if (nodeInfoModule)
+        nodeInfoModule->sendOurNodeInfo(node, true, 0);
+}
+
 bool OshiModule::controlFrameTrusted(const meshtastic_MeshPacket &mp) const
 {
     // A peer we talk to over PKI must answer over PKI, which authenticates it; accepting a channel-encrypted
@@ -187,7 +227,7 @@ void OshiModule::handleOmp(const meshtastic_MeshPacket &mp)
             receiveData(mp, f, RxMode::DELIVER);
         else if (mp.to == self && f.dest == OMP_DEST_INTERNET && isGatewayOnline())
             receiveData(mp, f, RxMode::UPLINK);
-        else if (mp.to == self && (f.flags & FLAG_CUSTODY_REQ) && custody.bytesFree() > 0)
+        else if (mp.to == self && (f.flags & FLAG_CUSTODY_REQ))
             receiveData(mp, f, RxMode::CUSTODY);
         break;
     }
@@ -205,7 +245,11 @@ void OshiModule::handleOmp(const meshtastic_MeshPacket &mp)
     }
     case FrameType::RECEIPT: {
         NoticeFrame nf;
-        if (decodeNotice(b, n, FrameType::RECEIPT, nf) && nf.origin == self && controlFrameTrusted(mp)) {
+        auto held = custodianOf.end();
+        // Only the custodian we handed it to can say it arrived.
+        if (decodeNotice(b, n, FrameType::RECEIPT, nf) && nf.origin == self && controlFrameTrusted(mp) &&
+            (held = custodianOf.find(nf.msgId)) != custodianOf.end() && held->second == mp.from) {
+            custodianOf.erase(held);
             StatusFrame s;
             s.msgId = nf.msgId;
             s.state = MsgState::DELIVERED;
@@ -216,8 +260,11 @@ void OshiModule::handleOmp(const meshtastic_MeshPacket &mp)
     }
     case FrameType::BEACON: {
         BeaconFrame bf;
-        if (decodeBeacon(b, n, bf))
+        if (decodeBeacon(b, n, bf)) {
             peers.onBeacon(mp.from, bf, hopsAway(mp), now);
+            if (!canAddress(mp.from))
+                askForKey(mp.from, now);
+        }
         break;
     }
     case FrameType::PULL: {
@@ -244,6 +291,10 @@ void OshiModule::receiveData(const meshtastic_MeshPacket &mp, const DataFrame &f
         return;
     }
 
+    // Refuse up front rather than acknowledge a message we then cannot keep: the sender would show it as
+    // held (or uplinked) while it is gone, and would stop looking for another custodian.
+    if (!canHold(mode, f.count))
+        return;
     Reassembler::Result r = rx.accept(f, mp.from, now);
     if (r == Reassembler::Result::REJECTED)
         return;
@@ -294,10 +345,10 @@ bool OshiModule::transmit(uint32_t linkTo, const uint8_t *bytes, size_t len, boo
     memcpy(p->decoded.payload.bytes, bytes, len);
     p->channel = oshiChannel >= 0 ? oshiChannel : channels.getPrimaryIndex();
 
-    bool pki = peerUsesPki(linkTo);
+    bool direct = canAddress(linkTo);
     // Without the peer's key a DM would be refused, so the frame is broadcast and the OMP header carries the real target.
-    p->to = pki ? linkTo : NODENUM_BROADCAST;
-    p->want_ack = pki && wantAck;
+    p->to = direct ? linkTo : NODENUM_BROADCAST;
+    p->want_ack = direct && wantAck;
     p->priority = meshtastic_MeshPacket_Priority_RELIABLE;
     service->sendToMesh(p, RX_SRC_LOCAL, false);
     return true;
@@ -471,6 +522,11 @@ void OshiModule::processOutboxEvents()
         if (s.state == MsgState::DELIVERED || s.state == MsgState::FAILED || s.state == MsgState::UPLINKED)
             custodyDirty |= custody.remove(s.origin, s.msgId);
         if (s.origin == self) {
+            if (s.state == MsgState::IN_CUSTODY && s.node != self) {
+                if (custodianOf.size() > 64)
+                    custodianOf.erase(custodianOf.begin());
+                custodianOf[s.msgId] = s.node;
+            }
             statusToPhone(s);
             if (oshiGateway && (s.state == MsgState::DELIVERED || s.state == MsgState::FAILED))
                 oshiGateway->onDownlinkResult(s.msgId, s.state == MsgState::DELIVERED);

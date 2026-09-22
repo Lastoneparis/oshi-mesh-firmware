@@ -634,6 +634,38 @@ void test_duty_cycle_shedding_keeps_acks_and_dms()
     TEST_ASSERT_FALSE(shedUnderDutyCycle(99.0f, 100.0f, false, true, PRIORITY_DEFAULT)); // no duty cycle region
 }
 
+void test_outbox_sent_reported_once_across_parked_retries()
+{
+    Outbox o(fastConfig());
+    o.setSelfNode(0xA);
+    o.enqueue(makeMessage(30, 0xA, 0xB, 10), 0);
+    uint32_t now = 0;
+    for (int round = 0; round < 3; round++) {
+        drainFrames(o, now);
+        now += 200;
+        o.tick(now);
+    }
+    o.onNodeHeard(0xB, now);
+    drainFrames(o, now);
+    int sent = 0;
+    for (const auto &s : o.drainStatus())
+        sent += s.state == MsgState::SENT;
+    TEST_ASSERT_EQUAL(1, sent);
+}
+
+void test_peers_skip_unaddressable()
+{
+    PeerTable t;
+    BeaconFrame c{CAP_CUSTODIAN | CAP_GATEWAY_ONLINE, 0x100, 30};
+    t.onBeacon(1, c, 1, 0);
+    t.onBeacon(2, c, 3, 0);
+    auto onlyTwo = [](uint32_t n) { return n == 2; };
+    TEST_ASSERT_EQUAL_HEX32(1, t.pickCustodian(0xB, 100, 10));
+    TEST_ASSERT_EQUAL_HEX32(2, t.pickCustodian(0xB, 100, 10, onlyTwo));
+    TEST_ASSERT_EQUAL_HEX32(2, t.pickGateway(10, onlyTwo));
+    TEST_ASSERT_EQUAL_HEX32(0, t.pickGateway(10, [](uint32_t) { return false; }));
+}
+
 void setup()
 {
     UNITY_BEGIN();
@@ -671,6 +703,8 @@ void setup()
     RUN_TEST(test_request_bodies);
     RUN_TEST(test_unsigned_from_signer_only_excused_by_a_legacy_relay);
     RUN_TEST(test_duty_cycle_shedding_keeps_acks_and_dms);
+    RUN_TEST(test_outbox_sent_reported_once_across_parked_retries);
+    RUN_TEST(test_peers_skip_unaddressable);
     exit(UNITY_END());
 }
 
