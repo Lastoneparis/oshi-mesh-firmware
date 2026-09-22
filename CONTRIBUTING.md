@@ -1,47 +1,58 @@
-# Contributing to Meshtastic Firmware
+# Contributing to OSHI Mesh
 
-We're excited that you're interested in contributing to the Meshtastic firmware! This document provides a high-level overview of how you can get involved.
+OSHI Mesh is a fork of the [Meshtastic firmware](https://github.com/meshtastic/firmware). Contributions are welcome here for
+anything OSHI-specific: the OSHI Mesh Protocol (OMP), custody, the gateway, the router policies in `src/oshi/OshiPolicy.h`,
+the specification in `docs/omp/`, tests and tools.
 
-## Important First Steps
+**Fixes to the Meshtastic firmware itself belong upstream.** If a bug is not in OSHI code, please report and fix it in
+[meshtastic/firmware](https://github.com/meshtastic/firmware) (their contribution guide and CLA apply there); it will reach
+this fork with the next upstream sync.
 
-Before you begin, please:
+## Branches
 
-1. **Read our documentation**: Our [official documentation](https://meshtastic.org/docs/) is a crucial resource. It contains essential information about the project.
+| Branch | Content |
+| --- | --- |
+| `oshi` (default) | upstream `develop` plus the OSHI Mesh commits. Releases are built from here. |
+| `develop` | mirror of `meshtastic/firmware` `develop`, never committed to directly |
+| other branches | inherited from upstream, not maintained here |
 
-2. **Check out the firmware build guide**: For specific instructions on setting up your development environment and building the firmware, refer to our [Firmware Build Guide](https://meshtastic.org/docs/development/firmware/build/).
+## How the fork tracks upstream
 
-3. Read our [Code of Conduct](https://meshtastic.org/docs/legal/conduct/)
+OSHI code is kept apart so that upstream changes merge cleanly:
 
-4. Join our [Discord community](https://discord.com/invite/ktMAKGBnBs) to connect with developers and other contributors to get help.
+- new files only: `src/oshi/`, `src/modules/OshiModule.*`, `test/test_oshi_protocol/`, `tools/oshi/`, `docs/omp/`;
+- a small number of hooks in upstream files (`src/mesh/MeshService.{h,cpp}`, `src/mesh/Router.cpp`,
+  `src/modules/Modules.cpp`), each behind `#if !MESHTASTIC_EXCLUDE_OSHI`;
+- branding only in default names (`NodeDB.cpp`, `main.cpp`), the boot/screen images and `userPrefs.jsonc`.
 
-## Getting Help and Discussing Ideas
+Syncing (maintainers):
 
-We encourage open communication and discussion before diving into code changes:
+```sh
+git remote add upstream https://github.com/meshtastic/firmware.git   # once
+git fetch upstream
+git push origin upstream/develop:develop       # refresh the mirror
+git checkout oshi
+git merge upstream/develop                     # merge, never rebase: `oshi` is public, history is not rewritten
+pio test -e coverage -f test_oshi_protocol     # Linux; plus tools/oshi/sim_mesh.py
+git push origin oshi
+```
 
-1. **Use GitHub Discussions**: For new ideas, questions, or to discuss potential changes, start a conversation in our [GitHub Discussions](https://github.com/meshtastic/firmware/discussions) first. This helps us collaborate and avoid duplicate work.
+After a sync, check that the hooks still sit where they must: the phone-side hooks in `MeshService::handleFromRadio` and
+`MeshService::handleToRadio`, the duty-cycle hook just before the upstream duty-cycle check in `Router::send`, and the
+signature hook in the `COMPATIBLE` branch of `checkXeddsaReceivePolicy`. If upstream changes the behaviour an item in the
+README's "Why a fork" table describes, update the table and its line references.
 
-2. **Join our Discord**: For real-time chat and quick questions, join our [Discord server](https://discord.com/invite/ktMAKGBnBs). It's a great place to get help and connect with other developers and the community.
+## Changing the protocol
 
-3. **Reporting Issues**: If you've identified a bug, please use our bug report template when creating a new issue in the [issue tracker](https://github.com/meshtastic/firmware/issues). Ensure you've searched existing issues to avoid duplicates.
+`docs/omp/OMP-v1.md` is a contract with other implementations. A change to any frame layout, constant or state-machine rule
+must update the specification and `docs/omp/IMPLEMENTING.md` (including the test vectors) in the same pull request.
+Changes that old OMP v1 nodes cannot understand need a new version nibble, not a silent change.
 
-## Making Contributions
+## Pull requests
 
-> [!IMPORTANT]
-> Before making any contributions, you must sign our Contributor License Agreement (CLA). You can do this by visiting https://cla-assistant.io/meshtastic/firmware. Be sure to use the GitHub account you will use to submit your contributions when signing.
+1. Branch from `oshi`, keep the change focused, and keep OSHI logic in `src/oshi/` as pure, testable code where possible.
+2. Add or update unit tests in `test/test_oshi_protocol/`; for behaviour across nodes, a scenario in `tools/oshi/sim_mesh.py`.
+3. Say in the description what was tested and how (unit, simulation, which hardware).
+4. Format with `trunk fmt`, as upstream does.
 
-1. Fork the repository
-2. Create a new branch for your feature or bug fix
-3. Make your changes
-4. Test your changes thoroughly
-5. Create a pull request with a clear description, using the provided template, of your changes. Be sure to enable "Allow edits from maintainers".
-
-## Coding Standards
-
-To ensure consistent code formatting across the project:
-
-1. Install the [Trunk](https://marketplace.visualstudio.com/items?itemName=Trunk.io) extension for Visual Studio Code.
-2. Before submitting your changes, run `trunk fmt` to automatically format your code according to our standards.
-
-Adhering to these formatting guidelines helps maintain code consistency and makes the review process smoother.
-
-Thank you for contributing to Meshtastic!
+By contributing you agree that your contribution is licensed under the GPL-3.0, like the rest of the firmware.
