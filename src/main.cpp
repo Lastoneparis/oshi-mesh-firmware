@@ -290,7 +290,7 @@ const char *getDeviceName()
     if (strcmp(owner.short_name, name) != 0) {
         snprintf(name, sizeof(name), "%s_%02x%02x", owner.short_name, dmac[4], dmac[5]);
     } else {
-        snprintf(name, sizeof(name), "Meshtastic_%02x%02x", dmac[4], dmac[5]);
+        snprintf(name, sizeof(name), "OSHI_%02x%02x", dmac[4], dmac[5]);
     }
     return name;
 }

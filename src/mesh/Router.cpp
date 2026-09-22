@@ -1,4 +1,7 @@
 #include "Router.h"
+#if !MESHTASTIC_EXCLUDE_OSHI
+#include "oshi/OshiPolicy.h"
+#endif
 #include "Channels.h"
 #include "CryptoEngine.h"
 #include "MeshRadio.h"
@@ -482,6 +485,18 @@ ErrorCode Router::send(meshtastic_MeshPacket *p)
 
     // Abort sending if we are violating the duty cycle
     float effectiveDutyCycle = getEffectiveDutyCycle();
+#if !MESHTASTIC_EXCLUDE_OSHI
+    if (!config.lora.override_duty_cycle &&
+        oshi::shedUnderDutyCycle(airTime->utilizationTXPercent(), effectiveDutyCycle, isFromUs(p), isBroadcast(p->to),
+                                 p->priority)) {
+        LOG_DEBUG("Duty cycle near limit, shed 0x%08x to keep airtime for ACKs and DMs", p->id);
+        if (isFromUs(p))
+            abortSendAndNak(meshtastic_Routing_Error_DUTY_CYCLE_LIMIT, p);
+        else
+            packetPool.release(p);
+        return meshtastic_Routing_Error_DUTY_CYCLE_LIMIT;
+    }
+#endif
     if (!config.lora.override_duty_cycle && effectiveDutyCycle < 100) {
         float hourlyTxPercent = airTime->utilizationTXPercent();
         if (hourlyTxPercent > effectiveDutyCycle) {
@@ -785,8 +800,25 @@ bool checkXeddsaReceivePolicy(meshtastic_MeshPacket *p)
             LOG_WARN("Drop unsigned packet from 0x%08x in Strict signature mode", p->from);
             return false;
         }
-        if (compatible)
+        if (compatible) {
+#if !MESHTASTIC_EXCLUDE_OSHI
+            if (nodeDB->isKnownXeddsaSigner(p->from) && isBroadcast(p->to)) {
+                NodeNum relay = 0;
+                const bool resolved =
+                    p->relay_node && nodeDB->resolveUniqueLastByte(p->relay_node, /*requireDirectNeighbor=*/false, &relay);
+                const bool relayIsSigner = resolved && nodeDB->isKnownXeddsaSigner(relay);
+                size_t canonicalSize;
+                if (!oshi::unsignedExplainedByLegacyRelay(oshi::heardDirect(p->hop_start, p->hop_limit), resolved,
+                                                          relayIsSigner) &&
+                    canonicalSignableSize(&p->decoded, &canonicalSize) &&
+                    canonicalSize + XEDDSA_SIGNATURE_FIELD_BYTES + MESHTASTIC_HEADER_LENGTH <= MAX_LORA_PAYLOAD_LEN) {
+                    LOG_WARN("Drop unsigned packet from signer 0x%08x that no legacy relay could have stripped", p->from);
+                    return false;
+                }
+            }
+#endif
             return true;
+        }
 
         // Balanced rejects only what a signer always signs: non-PKI broadcasts whose signed encoding
         // would have fit, plus unicasts on ham where licensed senders sign too. Mirrors perhapsEncode.

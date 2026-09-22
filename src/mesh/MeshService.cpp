@@ -7,6 +7,9 @@
 #include "../concurrency/Periodic.h"
 #include "BluetoothCommon.h" // needed for updateBatteryLevel, FIXME, eventually when we pull mesh out into a lib we shouldn't be whacking bluetooth from here
 #include "MeshService.h"
+#if !MESHTASTIC_EXCLUDE_OSHI
+#include "modules/OshiModule.h"
+#endif
 #include "MessageStore.h"
 #include "NodeDB.h"
 #include "Power.h"
@@ -113,6 +116,11 @@ int MeshService::handleFromRadio(const meshtastic_MeshPacket *mp)
             LOG_DEBUG("Skip NodeInfo > 25%% ch. util");
         }
     }
+
+#if !MESHTASTIC_EXCLUDE_OSHI
+    if (oshiModule && oshiModule->swallowsForPhone(*mp))
+        return 0;
+#endif
 
     // Our own packet heard back off the mesh, which the duplicate cache only suppresses best-effort.
     // Clients can't tell an echo from genuine ingress, so it surfaces as an incoming message. Packets
@@ -314,6 +322,11 @@ void MeshService::handleToRadio(meshtastic_MeshPacket &p)
 
     // Record the time the packet arrived from the phone.
     stampRxTime(&p);
+
+#if !MESHTASTIC_EXCLUDE_OSHI
+    if (oshiModule && oshiModule->handleFromPhone(p))
+        return;
+#endif
 
     IF_SCREEN(if (p.decoded.portnum == meshtastic_PortNum_TEXT_MESSAGE_APP && p.decoded.payload.size > 0 &&
                   p.to != NODENUM_BROADCAST && p.to != 0) // DM only

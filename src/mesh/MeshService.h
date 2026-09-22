@@ -128,6 +128,8 @@ class MeshService
     /// last few packets if needs to.
     meshtastic_MeshPacket *getForPhone() { return toPhoneQueue.dequeuePtr(0); }
 
+    int toPhoneQueueFree() { return toPhoneQueue.numFree(); }
+
     /// Allows the bluetooth handler to free packets after they have been sent
     void releaseToPool(meshtastic_MeshPacket *p) { packetPool.release(p); }
 

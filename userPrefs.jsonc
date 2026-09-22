@@ -49,6 +49,7 @@
   // "USERPREFS_BLOCK_POSITION_ON_EVENT_CHANNEL": "1", // Block location TX + discard inbound location on channels keyed with USERPREFS_CHANNEL_0_PSK. Defaults off, and must be set explicitly.
   // "USERPREFS_TMM_APPLY_TO_PRIVATE_CHANNELS": "1", // Extend TMM position dedup and precision clamping to private/custom-key channels (default: well-known channels only)
   // "USERPREFS_FIRMWARE_EDITION": "meshtastic_FirmwareEdition_BURNING_MAN",
+  "USERPREFS_FIRMWARE_EDITION": "meshtastic_FirmwareEdition_DIY_EDITION",
   // "USERPREFS_FIXED_BLUETOOTH": "121212",
   // "USERPREFS_FIXED_GPS": "",
   // "USERPREFS_FIXED_GPS_ALT": "0",

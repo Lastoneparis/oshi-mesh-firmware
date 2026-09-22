@@ -49,6 +49,9 @@
 #include "modules/PowerStressModule.h"
 #endif
 #include "modules/RoutingModule.h"
+#if !MESHTASTIC_EXCLUDE_OSHI
+#include "modules/OshiModule.h"
+#endif
 #if HAS_TRAFFIC_MANAGEMENT && !MESHTASTIC_EXCLUDE_TRAFFIC_MANAGEMENT
 #include "modules/TrafficManagementModule.h"
 #endif
@@ -293,6 +296,9 @@ void setupModules()
     // actually present.
 #ifdef OPTIONAL_MODULES_SETUP
     OPTIONAL_MODULES_SETUP();
+#endif
+#if !MESHTASTIC_EXCLUDE_OSHI
+    oshiModule = new OshiModule();
 #endif
     // NOTE! This module must be added LAST because it likes to check for replies from other modules and avoid sending extra
     // acks
