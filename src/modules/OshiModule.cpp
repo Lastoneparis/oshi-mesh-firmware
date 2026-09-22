@@ -37,6 +37,8 @@ constexpr uint8_t OSHI_CHANNEL_PSK[32] = {0x29, 0x43, 0x6d, 0x19, 0xaf, 0x55, 0x
 constexpr char CUSTODY_DIR[] = "/oshi";
 constexpr char CUSTODY_FILE[] = "/oshi/custody.bin";
 constexpr char PULL_FILE[] = "/oshi/pull.bin";
+constexpr char INBOX_FILE[] = "/oshi/inbox.bin";
+constexpr uint32_t INBOX_SAVE_MIN_MS = 5000;
 constexpr uint32_t PULL_INTERVAL_MS = 10 * 60 * 1000;
 // After a downlink arrives there may be more waiting (the server returns at most 5 per pull).
 constexpr uint32_t PULL_FOLLOWUP_MS = 30 * 1000;
@@ -69,6 +71,7 @@ void OshiModule::initialize()
     ensureChannel();
     outbox.setSelfNode(nodeDB->getNodeNum());
     loadCustody();
+    loadInbox();
     loadPullCursor();
 #if defined(ARCH_ESP32) && HAS_WIFI && !MESHTASTIC_EXCLUDE_WIFI
     // Any OSHI node on WiFi relays for the mesh; it only ever carries self-authenticating frames.
@@ -336,13 +339,20 @@ void OshiModule::toPhone(uint32_t from, const uint8_t *bytes, size_t len)
         phonePendingBytes -= phonePending.front().bytes.size();
         phonePending.pop_front();
     }
-    phonePending.push_back({from, std::vector<uint8_t>(bytes, bytes + len)});
+    PhoneFrame f;
+    f.from = from;
+    f.bytes.assign(bytes, bytes + len);
+    phonePending.push_back(std::move(f));
     phonePendingBytes += len;
     pumpPhone();
 }
 
 void OshiModule::pumpPhone()
 {
+    // With no phone attached the frames would only sit in the 8-slot queue and crowd out everything else;
+    // they wait here instead, and the inbox keeps a flash copy of whole messages.
+    if (service->api_state == MeshService::STATE_DISCONNECTED)
+        return;
     while (!phonePending.empty() && service->toPhoneQueueFree() > PHONE_QUEUE_RESERVE) {
         meshtastic_MeshPacket *p = router->allocForSending();
         if (!p)
@@ -355,19 +365,30 @@ void OshiModule::pumpPhone()
         p->decoded.payload.size = f.bytes.size();
         memcpy(p->decoded.payload.bytes, f.bytes.data(), f.bytes.size());
         phonePendingBytes -= f.bytes.size();
+        if (f.lastOfMessage)
+            inboxDirty |= inbox.remove(f.origin, f.msgId);
         phonePending.pop_front();
         service->sendToPhone(p);
     }
 }
 
-void OshiModule::deliverToPhone(const Message &msg)
+void OshiModule::deliverToPhone(const Message &msg, bool persist)
 {
+    if (persist && inbox.add(msg))
+        inboxDirty = true;
     uint8_t count = fragmentCount(msg.body.size());
     uint8_t buf[OMP_MAX_FRAME];
     for (uint8_t i = 0; i < count; i++) {
         size_t n = buildFragment(msg, i, msg.flags, buf, sizeof(buf));
-        if (n)
-            toPhone(msg.origin, buf, n);
+        if (!n)
+            continue;
+        toPhone(msg.origin, buf, n);
+        if (i + 1 == count && !phonePending.empty()) {
+            PhoneFrame &last = phonePending.back();
+            last.lastOfMessage = true;
+            last.origin = msg.origin;
+            last.msgId = msg.msgId;
+        }
     }
 }
 
@@ -533,6 +554,10 @@ int32_t OshiModule::runOnce()
     }
     processOutboxEvents();
     pumpPhone();
+    if (inboxDirty && Throttle::hasElapsed(lastInboxSaveMs, INBOX_SAVE_MIN_MS)) {
+        saveInbox();
+        lastInboxSaveMs = now;
+    }
     maybePull(now);
 
     uint32_t beaconDue = beaconSent ? BEACON_INTERVAL_MS : FIRST_BEACON_MS;
@@ -624,4 +649,47 @@ void OshiModule::savePullCursor()
     if (!f.close())
         LOG_ERROR("OSHI: can't write %s", PULL_FILE);
 #endif
+}
+
+void OshiModule::loadInbox()
+{
+#ifdef FSCom
+    std::vector<uint8_t> buf;
+    {
+        concurrency::LockGuard g(spiLock);
+        auto f = FSCom.open(INBOX_FILE, FILE_O_READ);
+        if (!f)
+            return;
+        buf.resize(f.size());
+        buf.resize(f.read(buf.data(), buf.size()));
+        f.close();
+    }
+    if (!inbox.deserialize(buf.data(), buf.size())) {
+        LOG_WARN("OSHI: inbox file unreadable, discarded");
+        return;
+    }
+    for (const auto &m : inbox.all())
+        deliverToPhone(m, false);
+    if (!inbox.all().empty())
+        LOG_INFO("OSHI: %u messages waiting for the phone", (unsigned)inbox.all().size());
+#endif
+}
+
+void OshiModule::saveInbox()
+{
+#ifdef FSCom
+    std::vector<uint8_t> bytes = inbox.serialize();
+    {
+        concurrency::LockGuard g(spiLock);
+        FSCom.mkdir(CUSTODY_DIR);
+    }
+    auto f = SafeFile(INBOX_FILE, false);
+    {
+        concurrency::LockGuard g(spiLock);
+        f.write(bytes.data(), bytes.size());
+    }
+    if (!f.close())
+        LOG_ERROR("OSHI: can't write %s", INBOX_FILE);
+#endif
+    inboxDirty = false;
 }

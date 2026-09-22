@@ -10,6 +10,8 @@ the phone on each over the TCP API to check OSHI Mesh end to end, including agai
   custody      the destination is down: the sender's radio parks the message, then delivers it when the
                destination comes back, without the phone resending anything
   stock-relay  OMP frames sent to a stock node are not surfaced to its phone as garbage
+  inbox-reboot the destination's phone is away and its radio reboots before the phone comes back: the
+               message must still reach the phone (flash-backed inbox, not the 8-slot RAM queue)
 
 Usage: sim_mesh.py --oshi PATH/meshtasticd --stock PATH/meshtasticd [--only NAME ...]
 Exit status is the number of failed scenarios.
@@ -237,8 +239,25 @@ def s_stock_relay(a, b, stock):
     return bool(alive), f"stock_alive={bool(alive)} raw_omp_frames_on_stock_phone={len(raw)}"
 
 
+def s_inbox_reboot(a, b, stock):
+    b.iface.close()
+    b.iface = None                       # phone gone; the radio keeps running
+    time.sleep(3)
+    msg_id = random.randint(1, 1 << 31)
+    body = b"kept in flash across a reboot " * 6
+    for fr in data_frames(msg_id, b.num_cached, body):
+        a.send_private(fr, to=a.num)
+    delivered = wait_for(lambda: "DELIVERED" in statuses(a, msg_id), 120)
+    time.sleep(7)                        # past the inbox save throttle
+    b.stop()                             # radio reboot with nothing handed to a phone yet
+    b.rx.clear()
+    b.start()
+    got = wait_for(lambda: reassemble(b, msg_id), 60)
+    return bool(delivered) and got == body, f"radio_acked={bool(delivered)} phone_got_it_after_reboot={got == body}"
+
+
 SCENARIOS = [("interop", s_interop), ("probe", s_probe), ("fragmented", s_fragmented), ("custody", s_custody),
-             ("stock-relay", s_stock_relay)]
+             ("stock-relay", s_stock_relay), ("inbox-reboot", s_inbox_reboot)]
 
 
 def main():

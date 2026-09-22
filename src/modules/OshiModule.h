@@ -48,12 +48,15 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     void toPhone(uint32_t from, const uint8_t *bytes, size_t len);
     void pumpPhone();
     bool peerUsesPki(uint32_t node) const;
-    void deliverToPhone(const oshi::Message &msg);
+    // persist=false when the message is already in the inbox (restored at boot).
+    void deliverToPhone(const oshi::Message &msg, bool persist = true);
     void statusToPhone(const oshi::StatusFrame &s);
     oshi::BeaconFrame ourBeacon() const;
 
     void loadCustody();
     void saveCustody();
+    void loadInbox();
+    void saveInbox();
     void processOutboxEvents();
     void maybePull(uint32_t now);
     void noteDownlink(const oshi::Message &msg, uint32_t now);
@@ -79,7 +82,16 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     struct PhoneFrame {
         uint32_t from;
         std::vector<uint8_t> bytes;
+        // Set on a message's last fragment: once it is handed over, the inbox copy can go.
+        bool lastOfMessage = false;
+        uint32_t origin = 0;
+        uint32_t msgId = 0;
     };
+    // Complete messages for our phone that it has not collected yet, kept in flash so a radio that
+    // reboots while the phone is away does not lose them (stock firmware holds 8 packets, in RAM).
+    oshi::CustodySet inbox{16 * 1024};
+    bool inboxDirty = false;
+    uint32_t lastInboxSaveMs = 0;
     std::deque<PhoneFrame> phonePending;
     size_t phonePendingBytes = 0;
 };
