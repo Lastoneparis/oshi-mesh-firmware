@@ -63,8 +63,10 @@ When a frame is broadcast only because the key is unknown, the OMP header still 
 receivers filter on it (section 6).
 
 Frames that ask a specific node to act for the sender (a custody request, an internet uplink, a PULL) are acted on **only
-when they arrive addressed to that node at the Meshtastic layer** (`to` = the receiver). In practice this means the sender
-must hold the receiver's public key. End-to-end DATA to a destination works either way.
+when they arrive addressed to that node at the Meshtastic layer** (`to` = the receiver), so a sender picks custodians and
+gateways only among nodes whose public key it holds. When it hears a BEACON from an OSHI node whose key it lacks, it sends
+that node its own NodeInfo with `want_response` (at most once per 30 minutes per node) to learn the key. End-to-end DATA to
+a destination works either way.
 
 Meshtastic flooding or next-hop routing carries each frame to its link recipient. OMP itself adds no routing.
 
@@ -549,8 +551,8 @@ authenticated between the two radios, and the OMP header is hidden from third pa
 
 **Control frames.** A SACK, CUSTODY or RECEIPT from a node whose key is known is accepted only if PKI-encrypted, which stops
 forged delivery reports for those peers. From a node whose key is unknown, control frames are unauthenticated: a forged SACK
-can end a transfer early or report a false `DELIVERED`, and a RECEIPT is not checked against the custodian the message was
-handed to. Applications that need proof of delivery SHOULD use an end-to-end acknowledgement inside their encrypted
+can end a transfer early or report a false `DELIVERED`. A RECEIPT is accepted only from the custodian the message was handed
+to (the node reported in the `IN_CUSTODY` status). Applications that need proof of delivery SHOULD use an end-to-end acknowledgement inside their encrypted
 envelope.
 
 **Beacons are unauthenticated.** A node can advertise itself as a custodian or gateway and attract messages. It can then
@@ -572,11 +574,13 @@ out legitimate state within them.
 **Replays over the air.** The completed-message memory is 64 entries, so an old DATA frame replayed later can be delivered
 again. Applications MUST deduplicate on (origin, msgId).
 
-**Known limitation.** A custodian acknowledges the last fragment before it tries to store the complete message. If its store
-turns out to be too small for that message, the origin has already recorded `IN_CUSTODY` and the message is lost. The
-custodian choice (free space at least the body size) makes this unlikely but does not prevent it. In the same way, a
-gateway radio acknowledges an internet message before queueing it for upload; if its queue of 8 jobs is full the message is
-dropped after the origin has recorded `UPLINKED`.
+**Capacity before acknowledgement.** A custodian accepts a custody request only if its store has room for `count × 182 +
+16` bytes, and a gateway accepts an internet message only if its upload queue has room, before any fragment is
+acknowledged. A node without room stays silent, so the origin keeps retrying, picks another custodian, or parks the message
+itself; it is never told `IN_CUSTODY` or `UPLINKED` for a message that was then dropped. (Fixed in 3fa73f3; earlier builds
+acknowledged first.)
+
+**Known limitation.** The 72-hour lifetime of a parked message restarts when the radio reboots.
 
 ## 12. Constants
 
