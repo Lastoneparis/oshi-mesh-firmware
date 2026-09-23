@@ -12,8 +12,8 @@
 press *Connect*. 150 boards: 89 ESP32-family boards in the browser, 61 nRF52/RP2040 boards as `.uf2`.
 Binaries and checksums are also on the [releases page](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest).
 
-OSHI Mesh is a fork of the [Meshtastic firmware](https://github.com/meshtastic/firmware) (`develop`). An OSHI node is still a
-normal Meshtastic node: the same radio settings, the same packet format, the same channels and keys, and the official
+OSHI Mesh is open-source LoRa firmware, **compatible with Meshtastic and MeshCore**. An OSHI node is a full member of a
+Meshtastic mesh: the same radio settings, the same packet format, the same channels and keys, and the official
 Meshtastic apps keep working. On top of that it adds the **OSHI Mesh Protocol (OMP)**, a small open protocol carried inside
 ordinary Meshtastic packets, which gives OSHI nodes things the stock firmware does not have: messages up to 11.6 KB,
 end-to-end delivery receipts, repair of lost fragments, and messages that wait in flash for an offline recipient instead of
@@ -47,12 +47,12 @@ What it adds on top:
 | Protocol licence | firmware GPL-3.0 | firmware MIT | firmware GPL-3.0, [protocol](https://github.com/Lastoneparis/oshi-mesh-protocol) **CC BY 4.0 + MIT code** |
 
 Where they are ahead: Meshtastic's maturity and community, MeshCore's path routing (less airtime on busy networks), and
-far more field testing than this young fork. Full comparison:
+far more field testing than this young project. Full comparison:
 <https://oshi-messenger.com/lora/why-oshi-mesh> ([français](https://oshi-messenger.com/fr/lora/pourquoi-oshi-mesh)).
 
 ## Contents
 
-- [Why a fork](#why-a-fork)
+- [What OSHI Mesh improves](#what-oshi-mesh-improves)
 - [Compatibility](#compatibility)
 - [Feature comparison](#feature-comparison)
 - [Status and what has been tested](#status-and-what-has-been-tested)
@@ -63,7 +63,7 @@ far more field testing than this young fork. Full comparison:
 - [Repository layout](#repository-layout)
 - [Credits and license](#credits-and-license)
 
-## Why a fork
+## What OSHI Mesh improves
 
 Each item below is a limitation of stock Meshtastic that OSHI Mesh addresses. Line numbers refer to the upstream commit this
 branch is based on, [`08cd97e`](https://github.com/meshtastic/firmware/tree/08cd97ea2) on `meshtastic/firmware` `develop`.
@@ -267,7 +267,7 @@ Everything here is GPL-3.0 and meant to be reused:
 | `tools/oshi/` | multi-node simulator and hardware pair test |
 | `docs/omp/` | protocol specification |
 
-Everything else is upstream Meshtastic. How the fork tracks upstream is described in [CONTRIBUTING.md](CONTRIBUTING.md).
+Everything else is shared with the Meshtastic firmware (GPL-3.0) and kept in sync with it; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits and license
 

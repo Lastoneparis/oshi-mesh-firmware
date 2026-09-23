@@ -203,7 +203,8 @@ def main():
 - Source: https://github.com/{a.repo} at commit `{commit}` (the suffix of the version string).
 - Built by GitHub Actions, not on a developer's machine: {run_url}
   Every file here is an artifact of that public run; the run lists the exact toolchain and inputs.
-- Base: the Meshtastic firmware (GPL-3.0), with the OSHI Mesh changes on top (`src/oshi/`, `src/modules/OshiModule.*`).
+- License: GPL-3.0. Compatible with Meshtastic and MeshCore. The source of this exact version, with its license and
+  credits, is at the link above; the OSHI Mesh code lives in `src/oshi/` and `src/modules/OshiModule.*`.
 - Boards: {len(targets)} ESP32-family boards (web flasher) and {len(uf2)} boards installed by .uf2 file.
 - No region is set: a freshly flashed node transmits nothing until its region is chosen.
 
