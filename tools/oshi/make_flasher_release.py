@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BASE_URL = "/lora/firmware/oshi-mesh"
@@ -67,6 +68,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--repo", default="Lastoneparis/oshi-mesh-firmware")
     ap.add_argument("--only", default="")
+    ap.add_argument("--jobs", type=int, default=6, help="artifacts downloaded in parallel")
     a = ap.parse_args()
     only = set(filter(None, a.only.split(",")))
 
@@ -76,7 +78,26 @@ def main():
     meta = board_metadata()
     targets, uf2, sums, version, skipped = [], [], [], None, []
 
+    wanted = []
     for art in firmware:
+        m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
+        if m and (not only or m.group(2) in only):
+            wanted.append(art)
+    cache = tempfile.mkdtemp(prefix="oshi-artifacts-")
+
+    def fetch(art):
+        d = os.path.join(cache, art)
+        subprocess.run(["gh", "run", "download", a.run_id, "-R", a.repo, "-n", art, "-D", d], check=True,
+                       capture_output=True)
+        for elf in glob.glob(os.path.join(d, "*.elf")):  # debug symbols: 20-50 MB each, never flashed
+            os.remove(elf)
+        return art
+
+    with ThreadPoolExecutor(max_workers=a.jobs) as pool:
+        for done in pool.map(fetch, wanted):
+            print(f"fetched {done}", flush=True)
+
+    for art in wanted:
         m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
         if not m:
             continue
@@ -86,9 +107,8 @@ def main():
         version = version or ver
         if ver != version:
             sys.exit(f"mixed versions in one run: {ver} vs {version}")
-        with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(["gh", "run", "download", a.run_id, "-R", a.repo, "-n", art, "-D", tmp], check=True,
-                           capture_output=True)
+        tmp = os.path.join(cache, art)
+        if True:
             dest = os.path.join(a.out, version, env)
             info = meta.get(env, {})
             name = info.get("name") or env
@@ -146,6 +166,7 @@ def main():
                                        "bytes": os.path.getsize(src), "sha256": sha(src)}})
         print(f"ok {env}", flush=True)
 
+    shutil.rmtree(cache, ignore_errors=True)
     if not version:
         sys.exit("no firmware artifacts")
     commit = version.rsplit(".", 1)[1]
