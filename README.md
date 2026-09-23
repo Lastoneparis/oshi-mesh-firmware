@@ -148,7 +148,9 @@ Not verified yet:
 - Large multi-hop networks. Tests so far are two radios over the air and small simulated meshes.
 - Relaying through stock **2.5-2.7** nodes in simulation (the stock node tested is 2.8; 2.7 was checked by reading its
   source only).
-- Bridging to MeshCore: implemented and unit-tested, not yet tested on air (see [MeshCore](#meshcore)).
+- The Meshtastic <-> MeshCore bridge over the air. The MeshCore side itself is tested over the air: OSHI messages of 600
+  and 2,000 bytes crossed between two MeshCore companion radios (firmware 1.17.1), byte for byte, both ways
+  (`tools/meshcore_air_test.py` in [oshi-mesh-protocol](https://github.com/Lastoneparis/oshi-mesh-protocol)).
 
 ## MeshCore
 
