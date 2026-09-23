@@ -177,6 +177,17 @@ gateway needs WiFi and is ESP32-only; everything else is platform-independent C+
 | RAK WisBlock 4631, LILYGO T-Echo, Seeed T1000-E (nRF52, `.uf2`) | `rak4631`, `t-echo`, `tracker-t1000-e` | released, not tested on hardware |
 | Any other upstream target | see `variants/` | expected to build, not released |
 
+## Release channels
+
+OSHI Mesh follows Meshtastic's releases rather than inventing its own base:
+
+- **Stable**: rebased on the exact tag of each Meshtastic release promoted to beta, with the OSHI changes on top.
+  The next one is the first Meshtastic 2.8 beta.
+- **Alpha** (today's builds): Meshtastic `develop` plus OSHI, kept within a few commits of upstream.
+
+Every channel is built for every board by CI, carries SHA-256 checksums, and is flashable from
+<https://oshi-messenger.com/lora/flash/>.
+
 ## Install
 
 **Web flasher:** <https://oshi-messenger.com/lora>. Flash from the browser over USB, no toolchain needed.
