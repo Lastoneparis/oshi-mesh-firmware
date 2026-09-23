@@ -2,6 +2,15 @@
 
 **Meshtastic-compatible LoRa mesh firmware with reliable delivery, store-and-forward custody and an internet gateway.**
 
+[![Latest release](https://img.shields.io/github/v/release/Lastoneparis/oshi-mesh-firmware?label=release)](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest)
+[![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
+[![Flash from your browser](https://img.shields.io/badge/flash-from%20your%20browser-7B3FF2)](https://oshi-messenger.com/lora/flash/)
+[![Protocol: OMP v1](https://img.shields.io/badge/protocol-OMP%20v1-informational)](docs/omp/OMP-v1.md)
+
+**Install in one minute:** open <https://oshi-messenger.com/lora/flash/> in Chrome or Edge, plug your board in over USB,
+press *Connect*. Heltec V3/V4, LILYGO T3-S3/T-Beam/T-Deck, Station G2 and more; RAK4631, T-Echo and T1000-E as `.uf2`.
+Binaries and checksums are also on the [releases page](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest).
+
 OSHI Mesh is a fork of the [Meshtastic firmware](https://github.com/meshtastic/firmware) (`develop`). An OSHI node is still a
 normal Meshtastic node: the same radio settings, the same packet format, the same channels and keys, and the official
 Meshtastic apps keep working. On top of that it adds the **OSHI Mesh Protocol (OMP)**, a small open protocol carried inside
@@ -136,9 +145,12 @@ gateway needs WiFi and is ESP32-only; everything else is platform-independent C+
 
 | Board | PlatformIO env | Status |
 | --- | --- | --- |
-| Heltec WiFi LoRa 32 V3 | `heltec-v3` | tested over the air |
-| LILYGO T-Beam | `tbeam` | builds, not tested on hardware |
-| Other upstream targets (Heltec V4, RAK4631, T-Echo, ...) | see `variants/` | expected to work, not tested |
+| Heltec WiFi LoRa 32 V3 | `heltec-v3` | released, tested over the air |
+| Heltec WiFi LoRa 32 V4, Heltec Wireless Tracker | `heltec-v4`, `heltec-wireless-tracker` | released, not tested on hardware |
+| LILYGO T3-S3, T-Beam, T-Beam Supreme, T-Deck | `tlora-t3s3-v1`, `tbeam`, `tbeam-s3-core`, `t-deck` | released, not tested on hardware |
+| B&Q Station G2 | `station-g2` | released, not tested on hardware |
+| RAK WisBlock 4631, LILYGO T-Echo, Seeed T1000-E (nRF52, `.uf2`) | `rak4631`, `t-echo`, `tracker-t1000-e` | released, not tested on hardware |
+| Any other upstream target | see `variants/` | expected to build, not released |
 
 ## Install
 
