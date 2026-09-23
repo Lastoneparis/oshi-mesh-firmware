@@ -9,7 +9,7 @@
 [![Protocol: OMP v1](https://img.shields.io/badge/protocol-OMP%20v1-informational)](docs/omp/OMP-v1.md)
 
 **Install in one minute:** open <https://oshi-messenger.com/lora/flash/> in Chrome or Edge, plug your board in over USB,
-press *Connect*. Heltec V3/V4, LILYGO T3-S3/T-Beam/T-Deck, Station G2 and more; RAK4631, T-Echo and T1000-E as `.uf2`.
+press *Connect*. 149 boards: 88 ESP32-family boards in the browser, 61 nRF52/RP2040 boards as `.uf2`.
 Binaries and checksums are also on the [releases page](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest).
 
 OSHI Mesh is a fork of the [Meshtastic firmware](https://github.com/meshtastic/firmware) (`develop`). An OSHI node is still a
@@ -170,14 +170,12 @@ accepts its delivery receipts (firmware `b960d30` or later). Its own README list
 OSHI Mesh changes no board support code: every target the upstream firmware builds for should build here. The internet
 gateway needs WiFi and is ESP32-only; everything else is platform-independent C++.
 
-| Board | PlatformIO env | Status |
+| Boards | Where | Status |
 | --- | --- | --- |
-| Heltec WiFi LoRa 32 V3 | `heltec-v3` | released, tested over the air |
-| Heltec WiFi LoRa 32 V4, Heltec Wireless Tracker | `heltec-v4`, `heltec-wireless-tracker` | released, not tested on hardware |
-| LILYGO T3-S3, T-Beam, T-Beam Supreme, T-Deck | `tlora-t3s3-v1`, `tbeam`, `tbeam-s3-core`, `t-deck` | released, not tested on hardware |
-| B&Q Station G2 | `station-g2` | released, not tested on hardware |
-| RAK WisBlock 4631, LILYGO T-Echo, Seeed T1000-E (nRF52, `.uf2`) | `rak4631`, `t-echo`, `tracker-t1000-e` | released, not tested on hardware |
-| Any other upstream target | see `variants/` | expected to build, not released |
+| 88 ESP32-family boards (Heltec, LILYGO, RAK, Seeed, Elecrow, B&Q, M5Stack...) | [web flasher](https://oshi-messenger.com/lora/flash/) | released, built by public CI for every board |
+| 61 nRF52840 / RP2040 / RP2350 boards | `.uf2` files on the same page | released, built by public CI for every board |
+| Heltec WiFi LoRa 32 V3 | - | also field-tested over the air |
+| STM32 (RAK3172, Wio-E5), nRF54L15 | see `variants/` | build, not released (need STM32CubeProgrammer / no .uf2) |
 
 ## Release channels
 
