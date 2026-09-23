@@ -3,6 +3,7 @@
 **Meshtastic-compatible LoRa mesh firmware with reliable delivery, store-and-forward custody and an internet gateway.**
 
 [![Latest release](https://img.shields.io/github/v/release/Lastoneparis/oshi-mesh-firmware?label=release)](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest)
+[![OSHI Mesh CI: native tests + fuzzing](https://github.com/Lastoneparis/oshi-mesh-firmware/actions/workflows/oshi.yml/badge.svg?branch=oshi)](https://github.com/Lastoneparis/oshi-mesh-firmware/actions/workflows/oshi.yml)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 [![Flash from your browser](https://img.shields.io/badge/flash-from%20your%20browser-7B3FF2)](https://oshi-messenger.com/lora/flash/)
 [![Protocol: OMP v1](https://img.shields.io/badge/protocol-OMP%20v1-informational)](docs/omp/OMP-v1.md)

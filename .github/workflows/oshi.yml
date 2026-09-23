@@ -1,0 +1,41 @@
+name: OSHI Mesh
+
+# The upstream workflows only trigger on master/develop and publish to Meshtastic's infrastructure. This one guards the
+# `oshi` branch: the full native test suite, and a time-boxed fuzz run of every OSHI parser that reads untrusted bytes.
+
+on:
+  push:
+    branches: [oshi]
+  pull_request:
+    branches: [oshi]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  native-tests:
+    uses: ./.github/workflows/test_native.yml
+
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the libFuzzer harness (ASan + UBSan)
+        run: |
+          clang++ -std=c++17 -g -O1 -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=undefined \
+            -I src/oshi tools/oshi/fuzz/fuzz_oshi.cpp src/oshi/OshiProtocol.cpp src/oshi/OshiMessage.cpp \
+            src/oshi/OshiCustody.cpp src/oshi/OshiGatewayCodec.cpp -o fuzz_oshi
+      - name: Fuzz frames, reassembly, custody records and gateway responses for 5 minutes
+        run: |
+          mkdir -p corpus && cp tools/oshi/fuzz/corpus/* corpus/
+          ./fuzz_oshi -max_total_time=300 -print_final_stats=1 -artifact_prefix=crash- corpus
+      - name: Keep any crashing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crash
+          path: crash-*
