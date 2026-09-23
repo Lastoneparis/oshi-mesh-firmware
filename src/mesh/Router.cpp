@@ -802,7 +802,8 @@ bool checkXeddsaReceivePolicy(meshtastic_MeshPacket *p)
         }
         if (compatible) {
 #if !MESHTASTIC_EXCLUDE_OSHI
-            if (nodeDB->isKnownXeddsaSigner(p->from) && isBroadcast(p->to)) {
+            // nodeDB can be absent (unit tests drive perhapsDecode bare); Compatible must then stay a pure pass.
+            if (nodeDB && nodeDB->isKnownXeddsaSigner(p->from) && isBroadcast(p->to)) {
                 NodeNum relay = 0;
                 const bool resolved =
                     p->relay_node && nodeDB->resolveUniqueLastByte(p->relay_node, /*requireDirectNeighbor=*/false, &relay);

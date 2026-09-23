@@ -695,7 +695,13 @@ void test_peers_bridge_capability()
     TEST_ASSERT_FALSE(t.hasCap(8, CAP_BRIDGE, 10));
 }
 
-void setup()
+#if defined(ARCH_PORTDUINO)
+#define OSHI_TEST_ENTRY extern "C"
+#else
+#define OSHI_TEST_ENTRY
+#endif
+
+OSHI_TEST_ENTRY void setup()
 {
     UNITY_BEGIN();
     RUN_TEST(test_data_roundtrip);
@@ -739,4 +745,4 @@ void setup()
     exit(UNITY_END());
 }
 
-void loop() {}
+OSHI_TEST_ENTRY void loop() {}

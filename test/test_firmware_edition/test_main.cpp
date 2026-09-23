@@ -11,6 +11,12 @@
 #define FE_TEST_ENTRY
 #endif
 
+#ifdef USERPREFS_FIRMWARE_EDITION
+#define BUILD_EDITION USERPREFS_FIRMWARE_EDITION
+#else
+#define BUILD_EDITION meshtastic_FirmwareEdition_VANILLA
+#endif
+
 void setUp(void) {}
 void tearDown(void) {}
 
@@ -32,9 +38,10 @@ static void test_vanillaBoot_resetsPersistedEventEdition(void)
     delete nodeDB;
     nodeDB = rebooted;
 
-    TEST_ASSERT_EQUAL(meshtastic_FirmwareEdition_VANILLA, devicestate.my_node.firmware_edition);
+    // The build's own edition: VANILLA upstream, the userPrefs edition in a fork (OSHI Mesh ships DIY_EDITION).
+    TEST_ASSERT_EQUAL(BUILD_EDITION, devicestate.my_node.firmware_edition);
     // On disk too, not just in RAM: the stamp must land before the boot save decision.
-    TEST_ASSERT_EQUAL(meshtastic_FirmwareEdition_VANILLA, persistedEdition());
+    TEST_ASSERT_EQUAL(BUILD_EDITION, persistedEdition());
 }
 
 FE_TEST_ENTRY void setup()
