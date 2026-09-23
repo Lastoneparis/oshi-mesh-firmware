@@ -666,6 +666,35 @@ void test_peers_skip_unaddressable()
     TEST_ASSERT_EQUAL_HEX32(0, t.pickGateway(10, [](uint32_t) { return false; }));
 }
 
+void test_outbox_receipt_ends_retries()
+{
+    Outbox o(fastConfig());
+    o.setSelfNode(0xA);
+    o.enqueue(makeMessage(40, 0xA, 0xB, 10), 0);
+    uint32_t now = 0;
+    drainFrames(o, now);
+    NoticeFrame n{40, 0xA, 0xB};
+    TEST_ASSERT_TRUE(o.onReceipt(n, now));
+    TEST_ASSERT_TRUE(hasStatus(o.drainStatus(), MsgState::DELIVERED, 0xB));
+    now += 1000;
+    o.tick(now);
+    Outbox::Frame f;
+    TEST_ASSERT_FALSE(o.nextFrame(now, f)); // no poll after the receipt
+    TEST_ASSERT_EQUAL(0, o.size());
+    TEST_ASSERT_FALSE(o.onReceipt(n, now));
+}
+
+void test_peers_bridge_capability()
+{
+    PeerTable t(8, 1000);
+    BeaconFrame br{CAP_BRIDGE, 0x100, 0};
+    t.onBeacon(9, br, 1, 0);
+    TEST_ASSERT_TRUE(t.hasCap(9, CAP_BRIDGE, 10));
+    TEST_ASSERT_FALSE(t.hasCap(9, CAP_CUSTODIAN, 10));
+    TEST_ASSERT_FALSE(t.hasCap(9, CAP_BRIDGE, 2000)); // stale
+    TEST_ASSERT_FALSE(t.hasCap(8, CAP_BRIDGE, 10));
+}
+
 void setup()
 {
     UNITY_BEGIN();
@@ -705,6 +734,8 @@ void setup()
     RUN_TEST(test_duty_cycle_shedding_keeps_acks_and_dms);
     RUN_TEST(test_outbox_sent_reported_once_across_parked_retries);
     RUN_TEST(test_peers_skip_unaddressable);
+    RUN_TEST(test_outbox_receipt_ends_retries);
+    RUN_TEST(test_peers_bridge_capability);
     exit(UNITY_END());
 }
 

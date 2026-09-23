@@ -245,11 +245,16 @@ void OshiModule::handleOmp(const meshtastic_MeshPacket &mp)
     }
     case FrameType::RECEIPT: {
         NoticeFrame nf;
-        auto held = custodianOf.end();
-        // Only the custodian we handed it to can say it arrived.
-        if (decodeNotice(b, n, FrameType::RECEIPT, nf) && nf.origin == self && controlFrameTrusted(mp) &&
-            (held = custodianOf.find(nf.msgId)) != custodianOf.end() && held->second == mp.from) {
+        if (!decodeNotice(b, n, FrameType::RECEIPT, nf) || nf.origin != self || !controlFrameTrusted(mp))
+            break;
+        // Only the custodian we handed it to, or a node that announced itself as a bridge, can say it arrived.
+        auto held = custodianOf.find(nf.msgId);
+        bool fromCustodian = held != custodianOf.end() && held->second == mp.from;
+        if (!fromCustodian && !peers.hasCap(mp.from, CAP_BRIDGE, now))
+            break;
+        if (held != custodianOf.end())
             custodianOf.erase(held);
+        if (!outbox.onReceipt(nf, now)) {
             StatusFrame s;
             s.msgId = nf.msgId;
             s.state = MsgState::DELIVERED;

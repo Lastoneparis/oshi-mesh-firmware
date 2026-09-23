@@ -31,6 +31,7 @@ class PeerTable
     // Nearest fresh node whose beacon says its gateway is online. 0 if none.
     uint32_t pickGateway(uint32_t nowMs, const Usable &usable = nullptr) const;
     bool isOshiNode(uint32_t node, uint32_t nowMs) const;
+    bool hasCap(uint32_t node, uint8_t cap, uint32_t nowMs) const;
     const std::vector<Peer> &all() const { return peers; }
 
   private:

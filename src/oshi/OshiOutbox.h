@@ -47,6 +47,9 @@ class Outbox
     bool nextFrame(uint32_t nowMs, Frame &out);
     void onSack(uint32_t from, const SackFrame &s, uint32_t nowMs);
     void onCustody(uint32_t from, const NoticeFrame &n, uint32_t nowMs);
+    // End-to-end confirmation from a custodian or bridge. Ends the entry wherever it is (sending, awaiting, parked)
+    // so the origin stops retrying. Returns false when no live entry matched.
+    bool onReceipt(const NoticeFrame &n, uint32_t nowMs);
     void onNodeHeard(uint32_t node, uint32_t nowMs);
     void tick(uint32_t nowMs);
 

@@ -49,6 +49,14 @@ uint32_t PeerTable::pickGateway(uint32_t nowMs, const Usable &usable) const
     return best ? best->node : 0;
 }
 
+bool PeerTable::hasCap(uint32_t node, uint8_t cap, uint32_t nowMs) const
+{
+    for (const auto &p : peers)
+        if (p.node == node)
+            return isFresh(p, nowMs) && (p.caps & cap);
+    return false;
+}
+
 bool PeerTable::isOshiNode(uint32_t node, uint32_t nowMs) const
 {
     for (const auto &p : peers)

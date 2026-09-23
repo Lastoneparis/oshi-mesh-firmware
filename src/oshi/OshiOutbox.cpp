@@ -216,6 +216,18 @@ void Outbox::onCustody(uint32_t from, const NoticeFrame &n, uint32_t nowMs)
     }
 }
 
+bool Outbox::onReceipt(const NoticeFrame &n, uint32_t nowMs)
+{
+    (void)nowMs;
+    for (auto &e : entries) {
+        if (e.msg.msgId == n.msgId && e.msg.origin == n.origin && e.state != State::DONE) {
+            finish(e, MsgState::DELIVERED, n.dest);
+            return true;
+        }
+    }
+    return false;
+}
+
 void Outbox::onNodeHeard(uint32_t node, uint32_t nowMs)
 {
     for (auto &e : entries) {

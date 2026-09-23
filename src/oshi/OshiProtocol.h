@@ -47,6 +47,8 @@ enum DataFlags : uint8_t {
 enum BeaconCaps : uint8_t {
     CAP_CUSTODIAN = 1 << 0,
     CAP_GATEWAY_ONLINE = 1 << 1,
+    // A host bridging OMP to another mesh (e.g. MeshCore); its RECEIPTs are accepted like a custodian's.
+    CAP_BRIDGE = 1 << 2,
 };
 
 enum class MsgState : uint8_t {
