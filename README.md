@@ -30,6 +30,25 @@ OMP is documented so that other apps and firmwares can implement it:
 > registered trademark of Meshtastic LLC. Almost all of the code in this repository is the work of the Meshtastic
 > contributors; see [Credits](#credits-and-license).
 
+## Why OSHI Mesh instead of stock Meshtastic or MeshCore
+
+You do not have to choose: an OSHI Mesh node **stays on your Meshtastic network** (same settings, channels and keys; the
+Meshtastic apps keep working) and reaches **MeshCore** through a [bridge](https://github.com/Lastoneparis/oshi-meshcore-bridge).
+What it adds on top:
+
+| | Stock Meshtastic | MeshCore | OSHI Mesh |
+| --- | --- | --- | --- |
+| Longest message | ~230 B, one packet | ~160-180 B, one packet | **11,648 B**, fragmented and reassembled |
+| Lost part | whole message resent | whole message resent | **only the missing fragments** |
+| Delivery confirmation | ACK of one direct packet | ACK of a direct message | **DELIVERED for the whole message**, end to end |
+| Recipient offline | DM dropped after retries; S&F text-only on PSRAM routers | room servers; companion queue | **parked in flash on any OSHI node**, 72 h |
+| Rides the existing network | it is that network | it is that network | **both**: stock nodes relay it opaque; MeshCore via bridge |
+| Protocol licence | firmware GPL-3.0 | firmware MIT | firmware GPL-3.0, [protocol](https://github.com/Lastoneparis/oshi-mesh-protocol) **CC BY 4.0 + MIT code** |
+
+Where they are ahead: Meshtastic's maturity and community, MeshCore's path routing (less airtime on busy networks), and
+far more field testing than this young fork. Full comparison:
+<https://oshi-messenger.com/lora/why-oshi-mesh> ([français](https://oshi-messenger.com/fr/lora/pourquoi-oshi-mesh)).
+
 ## Contents
 
 - [Why a fork](#why-a-fork)
