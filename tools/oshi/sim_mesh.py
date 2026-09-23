@@ -12,6 +12,12 @@ the phone on each over the TCP API to check OSHI Mesh end to end, including agai
   stock-relay  OMP frames sent to a stock node are not surfaced to its phone as garbage
   inbox-reboot the destination's phone is away and its radio reboots before the phone comes back: the
                message must still reach the phone (flash-backed inbox, not the 8-slot RAM queue)
+               KNOWN HARNESS GAP: the air is carried through each node's API link, so closing B's phone also
+               deafens B's radio; this scenario cannot pass until the harness injects air without a phone.
+  via-stock-client  A and B out of range of each other, a stock CLIENT (rebroadcast ALL) between them:
+               text and a fragmented OMP message must cross it, and the sender must see DELIVERED
+  via-stock-router  same, with the stock node as a ROUTER (CORE_PORTNUMS_ONLY, the mode that drops
+               PRIVATE_APP it can decode): OMP rides the OSHI channel it cannot decode, so it is relayed opaque
 
 Usage: sim_mesh.py --oshi PATH/meshtasticd --stock PATH/meshtasticd [--only NAME ...]
 Exit status is the number of failed scenarios.
@@ -68,7 +74,7 @@ class Node:
 
     def start(self):
         log = open(os.path.join(self.home, "node.log"), "ab")
-        env = dict(os.environ, HOME=self.home)
+        env = dict(os.environ, HOME=self.home, SIM_CARRY_CIPHERTEXT=os.environ.get("SIM_CARRY_CIPHERTEXT", "1"))  # every node decrypts for itself, as on air
         self.proc = subprocess.Popen(
             [self.binary, "-s", "-c", os.path.join(self.home, "config.yaml"), "-p", str(self.port), "-h", str(self.hwid)],
             cwd=self.home, env=env, stdout=log, stderr=subprocess.STDOUT)
@@ -113,6 +119,7 @@ class Node:
 
 
 NODES = {}
+OUT_OF_RANGE = set()  # frozenset({name, name}) pairs that cannot hear each other
 APP_PORTS = {"PRIVATE_APP", "TEXT_MESSAGE_APP", PRIVATE_APP, 1}
 
 
@@ -121,6 +128,8 @@ def relay_on_air(sender, raw):
     node's RX path is the job Meshtasticator does. Full mesh: every node hears every other one."""
     for n in NODES.values():
         if n is sender or not n.iface or not n.proc or n.proc.poll() is not None:
+            continue
+        if frozenset((sender.name, n.name)) in OUT_OF_RANGE:
             continue
         pkt = mesh_pb2.MeshPacket()
         pkt.CopyFrom(raw)
@@ -256,8 +265,54 @@ def s_inbox_reboot(a, b, stock):
     return bool(delivered) and got == body, f"radio_acked={bool(delivered)} phone_got_it_after_reboot={got == body}"
 
 
+def set_stock_role(stock, role):
+    node = stock.iface.localNode
+    if node.localConfig.device.role == role:
+        return
+    node.localConfig.device.role = role
+    node.writeConfig("device")  # the firmware applies the role's defaults (ROUTER -> CORE_PORTNUMS_ONLY)
+    time.sleep(5)
+    stock.stop()
+    stock.start()
+    time.sleep(15)
+
+
+def via_stock(a, b, stock, role):
+    set_stock_role(stock, role)
+    OUT_OF_RANGE.add(frozenset(("a", "b")))
+    try:
+        mode = stock.iface.localNode.localConfig.device.rebroadcast_mode
+        tag = f"via-stock-{random.randint(0, 1 << 30)}"
+        # A channel broadcast: a DM here would test key learning, not relaying (2.8 rejects a channel-encrypted
+        # DM from a sender whose PKI key it holds while that sender does not hold its key yet).
+        a.iface.sendText(tag)
+        text_ok = wait_for(lambda: any(tag.encode() in p for p in b.text_received()), 60)
+        msg_id = random.randint(1, 1 << 31)
+        body = os.urandom(600)
+        for fr in data_frames(msg_id, b.num_cached, body):
+            a.send_private(fr, to=a.num)
+        got = wait_for(lambda: reassemble(b, msg_id), 240)
+        delivered = wait_for(lambda: "DELIVERED" in statuses(a, msg_id), 120)
+        ok = bool(text_ok) and got == body and bool(delivered)
+        return ok, (f"stock_rebroadcast_mode={mode} text={bool(text_ok)} omp_bytes={got == body} "
+                    f"statuses={statuses(a, msg_id)}")
+    finally:
+        OUT_OF_RANGE.clear()
+
+
+def s_via_stock_client(a, b, stock):
+    from meshtastic.protobuf import config_pb2
+    return via_stock(a, b, stock, config_pb2.Config.DeviceConfig.Role.CLIENT)
+
+
+def s_via_stock_router(a, b, stock):
+    from meshtastic.protobuf import config_pb2
+    return via_stock(a, b, stock, config_pb2.Config.DeviceConfig.Role.ROUTER)
+
+
 SCENARIOS = [("interop", s_interop), ("probe", s_probe), ("fragmented", s_fragmented), ("custody", s_custody),
-             ("stock-relay", s_stock_relay), ("inbox-reboot", s_inbox_reboot)]
+             ("stock-relay", s_stock_relay), ("inbox-reboot", s_inbox_reboot),
+             ("via-stock-client", s_via_stock_client), ("via-stock-router", s_via_stock_router)]
 
 
 def main():

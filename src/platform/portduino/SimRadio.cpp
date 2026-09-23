@@ -1,4 +1,5 @@
 #include "SimRadio.h"
+#include <cstdlib>
 #include "MeshService.h"
 #include "Router.h"
 
@@ -218,6 +219,15 @@ void SimRadio::startSend(meshtastic_MeshPacket *txp)
     // loopback payload. Carry such packets as ciphertext instead so the receiving sim node can
     // decrypt them as if they had arrived over the air (see unpackAndReceive()).
     bool carryEncrypted = p->pki_encrypted;
+    // SIM_CARRY_CIPHERTEXT=1 carries every packet as it would cross the air, so each receiving node must decrypt it
+    // itself: a relay without the sender's channel then sees ciphertext (and relays it opaque) instead of plaintext
+    // it cannot re-encrypt.
+    static const bool carryAllCiphertext = [] {
+        const char *v = getenv("SIM_CARRY_CIPHERTEXT");
+        return v && *v == '1';
+    }();
+    if (!carryEncrypted && carryAllCiphertext && p->which_payload_variant == meshtastic_MeshPacket_encrypted_tag)
+        carryEncrypted = true;
     if (!carryEncrypted) {
         perhapsDecode(p);
         // Channel packets we couldn't decrypt (e.g. relaying an unknown channel) are carried too.
