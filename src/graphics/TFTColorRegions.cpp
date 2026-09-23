@@ -284,7 +284,7 @@ static const TFTThemeDef kThemes[] = {
     // the theme color and background pixels to Black.
     {
         ThemeID::MeshtasticGreen, // id
-        "Meshtastic Green",       // name
+        "OSHI Green",             // name
         6,                        // uniqueIdentifier
         {
             {TFTPalette::MeshtasticGreen, TFTPalette::Black}, // HeaderBackground

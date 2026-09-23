@@ -174,11 +174,11 @@ class Applet : public GFX
 
     // Meshtastic Logo
 
-    static constexpr float LOGO_ASPECT_RATIO = 1.9;                    // Width:Height for drawing the Meshtastic logo
-    uint16_t getLogoWidth(uint16_t limitWidth, uint16_t limitHeight);  // Size Meshtastic logo to fit within region
-    uint16_t getLogoHeight(uint16_t limitWidth, uint16_t limitHeight); // Size Meshtastic logo to fit within region
+    static constexpr float LOGO_ASPECT_RATIO = 1.9;                    // Width:Height of the box the logo is drawn in
+    uint16_t getLogoWidth(uint16_t limitWidth, uint16_t limitHeight);  // Size the logo box to fit within region
+    uint16_t getLogoHeight(uint16_t limitWidth, uint16_t limitHeight); // Size the logo box to fit within region
     void drawLogo(int16_t centerX, int16_t centerY, uint16_t width, uint16_t height,
-                  Color color = BLACK); // Draw the Meshtastic logo
+                  Color color = BLACK); // Draw the OSHI Mesh logo
 
     std::string hexifyNodeNum(NodeNum num);                    // Style as !0123abdc
     SignalStrength getSignalStrength(float snr, float rssi);   // Interpret SNR and RSSI, as an easy to understand value

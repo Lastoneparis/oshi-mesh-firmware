@@ -55,6 +55,33 @@ def board_metadata():
     return meta
 
 
+def mui_envs():
+    """Envs whose resolved config pulls in meshtastic/device-ui (the LVGL colour UI). It carries Meshtastic's own logo and
+    name, so those builds are not published as OSHI Mesh until the UI itself is rebranded."""
+    cp = configparser.ConfigParser(interpolation=None, strict=False)
+    for f in [os.path.join(ROOT, "platformio.ini")] + glob.glob(os.path.join(ROOT, "variants", "**", "*.ini"), recursive=True):
+        try:
+            cp.read(f)
+        except configparser.Error:
+            pass
+
+    def resolved(sec, key, seen=()):
+        if sec not in cp or sec in seen:
+            return ""
+        v = cp[sec].get(key, "")
+        for parent in [x.strip() for x in cp[sec].get("extends", "").split(",") if x.strip()]:
+            v += "\n" + resolved(parent, key, seen + (sec,))
+        return v
+
+    out = set()
+    for sec in cp.sections():
+        if sec.startswith("env:"):
+            txt = resolved(sec, "lib_deps") + resolved(sec, "build_flags")
+            if "device-ui" in txt or "HAS_TFT=1" in txt:
+                out.add(sec[4:])
+    return out
+
+
 def sha(p):
     h = hashlib.sha256()
     with open(p, "rb") as f:
@@ -70,6 +97,7 @@ def main():
     ap.add_argument("--repo", default="Lastoneparis/oshi-mesh-firmware")
     ap.add_argument("--only", default="")
     ap.add_argument("--jobs", type=int, default=6, help="artifacts downloaded in parallel")
+    ap.add_argument("--include-mui", action="store_true", help="also publish builds with the Meshtastic-branded colour UI")
     a = ap.parse_args()
     only = set(filter(None, a.only.split(",")))
 
@@ -79,10 +107,14 @@ def main():
     meta = board_metadata()
     targets, uf2, sums, version, skipped = [], [], [], None, []
 
+    excluded = set() if a.include_mui else mui_envs()
     wanted = []
     for art in firmware:
         m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
         if m and (not only or m.group(2) in only):
+            if m.group(2) in excluded:
+                skipped.append(f"{m.group(2)} (Meshtastic colour UI)")
+                continue
             wanted.append(art)
     cache = tempfile.mkdtemp(prefix="oshi-artifacts-")
 
