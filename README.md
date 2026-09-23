@@ -63,6 +63,10 @@ A stock Meshtastic node and an OSHI node on the same mesh exchange text messages
 
 - OMP frames: `PRIVATE_APP` (256) payloads starting with the magic `OS`, on the secondary channel `OSHI`. Stock nodes
   relay them (they cannot decrypt them) but do not interpret them.
+- Which stock nodes relay them, by rebroadcast mode (read in the 2.7 and 2.8 sources, and tested in simulation for 2.8):
+  `ALL` (the default for most roles) and `CORE_PORTNUMS_ONLY` (the ROUTER default) relay the `OSHI` channel opaque.
+  `LOCAL_ONLY` and `KNOWN_ONLY`, which an owner sets on purpose to carry only their own channels, do not relay it
+  (a PKI direct message to or from a node they know still passes). `NONE` and `CLIENT_MUTE` relay nothing at all.
 - Fragmentation, selective repair, delivery receipts, custody and the internet gateway all require OSHI firmware on the
   endpoints that take part. Stock relays in between are fine.
 
@@ -102,7 +106,7 @@ This is early software. What has been verified, and how:
 | Area | Result |
 | --- | --- |
 | Unit tests (`test/test_oshi_protocol`) | 34/34 pass: codecs, fragmentation, reassembly limits, outbox rounds, SACK repair, custody hand-off, persistence, gateway codec, router policies |
-| Simulation (`tools/oshi/sim_mesh.py`, several `meshtasticd` instances including an unmodified stock one) | 5 scenarios pass: interop with a stock node; capability probe (answered by OSHI, ignored by stock); 2 KB message delivered as 12 fragments with `DELIVERED` receipt; custody (destination offline, message parked, delivered when it returns); OMP frames through a stock node are not surfaced to its phone. The harness also contains an `inbox-reboot` scenario. |
+| Simulation (`tools/oshi/sim_mesh.py`, several `meshtasticd` instances including an unmodified stock one, every packet carried as ciphertext) | 7 scenarios pass: interop with a stock node; capability probe (answered by OSHI, ignored by stock); 2 KB message delivered as 12 fragments with `DELIVERED` receipt; custody (destination offline, message parked, delivered when it returns); OMP frames through a stock node are not surfaced to its phone; **two OSHI nodes out of range of each other with a stock node between them, as CLIENT (`ALL`) and as ROUTER (`CORE_PORTNUMS_ONLY`)**: text and a 600-byte OMP message cross, the stock node relays every OSHI frame without decoding it, and the sender gets `DELIVERED`. The `inbox-reboot` scenario cannot pass yet: the harness carries the air through each node's API link, so closing the phone also deafens the radio. |
 | Over the air, two Heltec V3 | interop text with a stock node, and a 600-byte OMP message delivered with its receipt |
 | iPhone over BLE | the capability probe detects OSHI firmware, and iOS relaunches the app in the background to collect LoRa messages |
 
@@ -111,7 +115,19 @@ Not verified yet:
 - The internet gateway against the production server (the `/v2/mesh` routes are not deployed yet).
 - T-Beam on real hardware (it builds; it has not been flashed and tested).
 - Large multi-hop networks. Tests so far are two radios over the air and small simulated meshes.
-- Bridging to MeshCore (work in progress, in a separate repository).
+- Relaying through stock **2.5-2.7** nodes in simulation (the stock node tested is 2.8; 2.7 was checked by reading its
+  source only).
+- Bridging to MeshCore: implemented and unit-tested, not yet tested on air (see [MeshCore](#meshcore)).
+
+## MeshCore
+
+A LoRa radio listens to one network at a time: MeshCore uses its own radio settings and packet format, so no Meshtastic or
+OSHI node can hear it directly. OSHI messages reach MeshCore through
+[oshi-meshcore-bridge](https://github.com/Lastoneparis/oshi-meshcore-bridge) (GPL-3.0, a fork of the Akita
+Meshtastic-MeshCore bridge): one computer (Raspberry Pi, PC, Mac) with two radios, one running OSHI Mesh or Meshtastic,
+one running MeshCore companion firmware. It carries OMP frames across as MeshCore group-channel datagrams on a dedicated
+channel, re-fragmented to fit MeshCore's 184-byte packets, and announces itself with a `CAP_BRIDGE` beacon so the sender
+accepts its delivery receipts (firmware `b960d30` or later). Its own README lists what has and has not been verified.
 
 ## Supported boards
 
@@ -155,6 +171,27 @@ Tests and simulation:
 pio test -e coverage -f test_oshi_protocol      # native (portduino) build: Linux, WSL or bin/test-native-docker.sh
 python3 tools/oshi/sim_mesh.py --oshi PATH/meshtasticd --stock PATH/meshtasticd
 ```
+
+The harness sets `SIM_CARRY_CIPHERTEXT=1`, which makes an OSHI build's `SimRadio` hand every packet over as ciphertext
+so each node decrypts for itself, as on air. Without it the simulator passes a sender's channel packets as plaintext, and
+a stock relay that lacks the `OSHI` channel fails to re-encrypt them, which no real radio does. A stock build already
+carries what it cannot decrypt as ciphertext, which is the part that matters for relaying.
+
+## Use it in your own device, firmware or app
+
+Everything here is GPL-3.0 and meant to be reused:
+
+- **Another board:** OSHI Mesh touches no board code, so any `variants/` target builds with `pio run -e <env>`. The OSHI
+  code is platform-independent C++ under `src/oshi/` plus `src/modules/OshiModule.*`; only the internet gateway needs
+  an ESP32 with WiFi.
+- **Another firmware (MeshCore, Reticulum, your own):** implement OMP from [OMP-v1.md](docs/omp/OMP-v1.md) and check your
+  encoder against the byte-exact vectors in [IMPLEMENTING.md](docs/omp/IMPLEMENTING.md). The codec in
+  `src/oshi/OshiProtocol.{h,cpp}` has no Meshtastic dependency and can be copied as is.
+- **An app:** OMP travels as ordinary `PRIVATE_APP` packets through the standard Meshtastic phone API (BLE, serial,
+  TCP), so any Meshtastic client library (Python, JS, Swift, Kotlin) can send and receive it. `tools/oshi/sim_mesh.py`
+  is a working Python example.
+- **Your own server:** build with `-DOSHI_GATEWAY_URL=...` and implement the [gateway API](docs/omp/OMP-v1.md#10-gateway-http-api).
+- **Upstream only:** `-DMESHTASTIC_EXCLUDE_OSHI=1` gives back stock behaviour.
 
 ## Apps
 
