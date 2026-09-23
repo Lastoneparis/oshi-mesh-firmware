@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -87,15 +88,26 @@ def main():
 
     def fetch(art):
         d = os.path.join(cache, art)
-        subprocess.run(["gh", "run", "download", a.run_id, "-R", a.repo, "-n", art, "-D", d], check=True,
-                       capture_output=True)
+        for attempt in range(3):  # the artifact API returns the odd 502
+            shutil.rmtree(d, ignore_errors=True)
+            r = subprocess.run(["gh", "run", "download", a.run_id, "-R", a.repo, "-n", art, "-D", d],
+                               capture_output=True, text=True)
+            if r.returncode == 0:
+                break
+            time.sleep(10 * (attempt + 1))
+        else:
+            raise RuntimeError(f"{art}: download failed 3 times: {r.stderr.strip()[:200]}")
         for elf in glob.glob(os.path.join(d, "*.elf")):  # debug symbols: 20-50 MB each, never flashed
             os.remove(elf)
         return art
 
-    with ThreadPoolExecutor(max_workers=a.jobs) as pool:
-        for done in pool.map(fetch, wanted):
-            print(f"fetched {done}", flush=True)
+    try:
+        with ThreadPoolExecutor(max_workers=a.jobs) as pool:
+            for done in pool.map(fetch, wanted):
+                print(f"fetched {done}", flush=True)
+    except BaseException:
+        shutil.rmtree(cache, ignore_errors=True)  # a few GB of artifacts must not outlive a failed run
+        raise
 
     for art in wanted:
         m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
