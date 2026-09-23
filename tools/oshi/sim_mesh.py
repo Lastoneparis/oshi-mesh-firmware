@@ -14,6 +14,8 @@ the phone on each over the TCP API to check OSHI Mesh end to end, including agai
                message must still reach the phone (flash-backed inbox, not the 8-slot RAM queue)
                KNOWN HARNESS GAP: the air is carried through each node's API link, so closing B's phone also
                deafens B's radio; this scenario cannot pass until the harness injects air without a phone.
+  stock-origin a phone on a STOCK radio does OMP itself (what the OSHI app does there): it broadcasts DATA
+               frames with its own node number as origin; an OSHI node's phone must get the whole message
   via-stock-client  A and B out of range of each other, a stock CLIENT (rebroadcast ALL) between them:
                text and a fragmented OMP message must cross it, and the sender must see DELIVERED
   via-stock-router  same, with the stock node as a ROUTER (CORE_PORTNUMS_ONLY, the mode that drops
@@ -50,11 +52,11 @@ def omp(t, body=b""):
     return bytes([0x4F, 0x53, (1 << 4) | t]) + body
 
 
-def data_frames(msg_id, dest, body, flags=0):
+def data_frames(msg_id, dest, body, flags=0, origin=0):
     count = max(1, (len(body) + OMP_MAX_FRAG - 1) // OMP_MAX_FRAG)
     for i in range(count):
         chunk = body[i * OMP_MAX_FRAG:(i + 1) * OMP_MAX_FRAG]
-        yield omp(T_DATA, struct.pack("<IIIBBB", msg_id, 0, dest, i, count, flags) + chunk)
+        yield omp(T_DATA, struct.pack("<IIIBBB", msg_id, origin, dest, i, count, flags) + chunk)
 
 
 class Node:
@@ -265,6 +267,38 @@ def s_inbox_reboot(a, b, stock):
     return bool(delivered) and got == body, f"radio_acked={bool(delivered)} phone_got_it_after_reboot={got == body}"
 
 
+OSHI_PSK = bytes.fromhex("29436d19af55bd4e20247323c8ff455786f003119817e16cf7df3003684cb950")
+
+
+def add_oshi_channel(node):
+    """What the OSHI app does on a stock radio: the OSHI channel in the first free secondary slot."""
+    from meshtastic.protobuf import channel_pb2
+    ln = node.iface.localNode
+    for c in ln.channels:
+        if c.role != channel_pb2.Channel.Role.DISABLED and c.settings.name == "OSHI":
+            return c.index
+    free = next(c for c in ln.channels if c.index > 0 and c.role == channel_pb2.Channel.Role.DISABLED)
+    free.settings.name = "OSHI"
+    free.settings.psk = OSHI_PSK
+    free.role = channel_pb2.Channel.Role.SECONDARY
+    ln.writeChannel(free.index)
+    time.sleep(3)
+    return free.index
+
+
+def s_stock_origin(a, b, stock):
+    msg_id = random.randint(1, 1 << 31)
+    # Three FULL fragments: a stock 2.8 sender XEdDSA-signs any packet the 64-byte signature still fits in, and a
+    # short signed last fragment (244 B) overflows the simulator's 227-byte loopback (real radios carry 255).
+    body = os.urandom(3 * OMP_MAX_FRAG)
+    ch = add_oshi_channel(stock)
+    for fr in data_frames(msg_id, BROADCAST, body, origin=stock.num):
+        stock.iface.sendData(fr, destinationId=BROADCAST, portNum=PRIVATE_APP, wantAck=False, channelIndex=ch)
+        time.sleep(2.5)  # OMP pacing; the phone paces its own radio
+    got = wait_for(lambda: reassemble(b, msg_id), 90)
+    return got == body, f"oshi_phone_got_whole_message={got == body}"
+
+
 def set_stock_role(stock, role):
     node = stock.iface.localNode
     if node.localConfig.device.role == role:
@@ -312,7 +346,7 @@ def s_via_stock_router(a, b, stock):
 
 SCENARIOS = [("interop", s_interop), ("probe", s_probe), ("fragmented", s_fragmented), ("custody", s_custody),
              ("stock-relay", s_stock_relay), ("inbox-reboot", s_inbox_reboot),
-             ("via-stock-client", s_via_stock_client), ("via-stock-router", s_via_stock_router)]
+             ("stock-origin", s_stock_origin), ("via-stock-client", s_via_stock_client), ("via-stock-router", s_via_stock_router)]
 
 
 def main():
