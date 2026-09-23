@@ -342,6 +342,11 @@ void OshiModule::receiveData(const meshtastic_MeshPacket &mp, const DataFrame &f
 
 bool OshiModule::transmit(uint32_t linkTo, const uint8_t *bytes, size_t len, bool wantAck)
 {
+    // Licensed (ham) mode: only the plaintext 7-byte BEACON may go out; every other OMP frame carries or acknowledges
+    // encrypted content (custody hand-offs, repairs, relayed fragments). Upstream's opaque relay stops there too.
+    FrameType t;
+    if (owner.is_licensed && !(frameType(bytes, len, t) && t == FrameType::BEACON))
+        return false;
     meshtastic_MeshPacket *p = router->allocForSending();
     if (!p)
         return false;
@@ -502,6 +507,16 @@ bool OshiModule::handleFromPhone(const meshtastic_MeshPacket &p)
     }
     if (msg.dest == self)
         return true;
+    if (owner.is_licensed) {
+        // Amateur bands forbid encrypted content, and an OSHI body is end-to-end encrypted.
+        LOG_WARN("OSHI: licensed (ham) mode, refusing to transmit 0x%08x", msg.msgId);
+        StatusFrame s;
+        s.msgId = msg.msgId;
+        s.state = MsgState::REJECTED;
+        s.node = self;
+        statusToPhone(s);
+        return true;
+    }
     outbox.enqueue(msg, now);
     return true;
 }

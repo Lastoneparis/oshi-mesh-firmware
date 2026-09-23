@@ -14,6 +14,8 @@ the phone on each over the TCP API to check OSHI Mesh end to end, including agai
                message must still reach the phone (flash-backed inbox, not the 8-slot RAM queue)
                KNOWN HARNESS GAP: the air is carried through each node's API link, so closing B's phone also
                deafens B's radio; this scenario cannot pass until the harness injects air without a phone.
+  ham-mode     a node in licensed (amateur) mode refuses to transmit OMP, whose body is encrypted: its phone gets
+               REJECTED and nothing reaches the other node
   stock-origin a phone on a STOCK radio does OMP itself (what the OSHI app does there): it broadcasts DATA
                frames with its own node number as origin; an OSHI node's phone must get the whole message
   via-stock-client  A and B out of range of each other, a stock CLIENT (rebroadcast ALL) between them:
@@ -286,6 +288,28 @@ def add_oshi_channel(node):
     return free.index
 
 
+def s_ham_mode(a, b, stock):
+    a.iface.localNode.setOwner(long_name="OSHI ham test", short_name="HAM", is_licensed=True)
+    time.sleep(3)
+    a.stop()
+    a.start()
+    time.sleep(10)
+    try:
+        msg_id = random.randint(1, 1 << 31)
+        body = b"encrypted payloads are not allowed on amateur bands"
+        for fr in data_frames(msg_id, BROADCAST, body):
+            a.send_private(fr, to=a.num)
+        rejected = wait_for(lambda: "REJECTED" in statuses(a, msg_id), 30)
+        time.sleep(10)
+        leaked = reassemble(b, msg_id) is not None
+        return bool(rejected) and not leaked, f"statuses={statuses(a, msg_id)} reached_b={leaked}"
+    finally:
+        a.iface.localNode.setOwner(long_name="OSHI sim a", short_name="OSHa", is_licensed=False)
+        time.sleep(3)
+        a.stop()
+        a.start()
+
+
 def s_stock_origin(a, b, stock):
     msg_id = random.randint(1, 1 << 31)
     # Three FULL fragments: a stock 2.8 sender XEdDSA-signs any packet the 64-byte signature still fits in, and a
@@ -346,7 +370,7 @@ def s_via_stock_router(a, b, stock):
 
 SCENARIOS = [("interop", s_interop), ("probe", s_probe), ("fragmented", s_fragmented), ("custody", s_custody),
              ("stock-relay", s_stock_relay), ("inbox-reboot", s_inbox_reboot),
-             ("stock-origin", s_stock_origin), ("via-stock-client", s_via_stock_client), ("via-stock-router", s_via_stock_router)]
+             ("ham-mode", s_ham_mode), ("stock-origin", s_stock_origin), ("via-stock-client", s_via_stock_client), ("via-stock-router", s_via_stock_router)]
 
 
 def main():
