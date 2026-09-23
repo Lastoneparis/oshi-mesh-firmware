@@ -1,0 +1,82 @@
+name: OSHI Mesh upstream watch
+
+# The stable channel follows Meshtastic: when Meshtastic publishes a 2.8 release that is no longer marked as a
+# prerelease (its first beta), this tries merging the OSHI changes onto that tag and opens an issue saying whether it
+# merges cleanly (or which files conflict). It pushes nothing: the default token may not push upstream's workflow
+# changes, and the stable channel is published by a person after the tests pass.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LINE: "2.8"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: oshi
+          fetch-depth: 0
+
+      - name: Find the newest non-prerelease Meshtastic release on the line
+        id: find
+        run: |
+          tag=$(gh api "repos/meshtastic/firmware/releases?per_page=30" \
+            -q "[.[] | select(.prerelease == false and (.tag_name | startswith(\"v${LINE}.\")))][0].tag_name // empty")
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "newest non-prerelease ${LINE}.x: ${tag:-none}"
+
+      - name: Stop if this release already has an issue
+        id: gate
+        if: steps.find.outputs.tag != ''
+        run: |
+          title="Stable channel: Meshtastic ${{ steps.find.outputs.tag }} is out"
+          if [ -n "$(gh issue list --state all --search "in:title \"$title\"" --json number -q '.[0].number')" ]; then
+            echo "already reported"; echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"; echo "branch=feature/stable-${{ steps.find.outputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Merge the OSHI changes onto the Meshtastic tag
+        id: merge
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          tag="${{ steps.find.outputs.tag }}"
+          git config user.name "oshi-upstream-watch"
+          git config user.email "contact@oshi-messenger.com"
+          git remote add upstream https://github.com/meshtastic/firmware.git
+          git fetch --no-tags upstream "refs/tags/${tag}:refs/tags/${tag}"
+          git checkout -b "${{ steps.gate.outputs.branch }}" "${tag}"
+          if git merge --no-edit oshi -m "Merge OSHI Mesh onto Meshtastic ${tag}"; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > conflicts.txt
+            git merge --abort
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open an issue
+        if: steps.gate.outputs.go == 'true'
+        run: |
+          tag="${{ steps.find.outputs.tag }}"
+          if [ "${{ steps.merge.outputs.clean }}" = "true" ]; then
+            body="Meshtastic published ${tag} as a non-prerelease, and the OSHI changes merge onto it cleanly.
+
+          To publish the stable channel: \`git checkout -b ${{ steps.gate.outputs.branch }} ${tag} && git merge oshi\`, push, run \`gh workflow run CI --ref ${{ steps.gate.outputs.branch }}\` (every board) and the OSHI Mesh CI, then \`tools/oshi/sim_mesh.py\`, \`tools/oshi/hw_pair_test.py\` and \`tools/oshi/make_flasher_release.py <run id>\`."
+          else
+            body="Meshtastic published ${tag} as a non-prerelease, but merging the OSHI changes onto it conflicts in:
+
+          \`\`\`
+          $(cat conflicts.txt)
+          \`\`\`
+          Resolve by hand on a branch from ${tag}."
+          fi
+          gh issue create --title "Stable channel: Meshtastic ${tag} is out" --body "$body"
