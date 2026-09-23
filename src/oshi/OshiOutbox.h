@@ -62,7 +62,7 @@ class Outbox
     bool isParked(uint32_t origin, uint32_t msgId) const;
 
   private:
-    enum class State { SENDING, AWAIT_ACK, PARKED, DONE };
+    enum class State { SENDING, AWAIT_ACK, PARKED, FINISHED }; // not DONE: a board variant (ThinkNode M8) #defines DONE
     struct Entry {
         Message msg;
         uint32_t linkTo;

@@ -38,11 +38,11 @@ bool Outbox::isParked(uint32_t origin, uint32_t msgId) const
 bool Outbox::enqueue(const Message &msg, uint32_t nowMs, bool parked)
 {
     for (const auto &e : entries)
-        if (e.msg.origin == msg.origin && e.msg.msgId == msg.msgId && e.state != State::DONE)
+        if (e.msg.origin == msg.origin && e.msg.msgId == msg.msgId && e.state != State::FINISHED)
             return true;
 
     uint8_t count = fragmentCount(msg.body.size());
-    size_t live = std::count_if(entries.begin(), entries.end(), [](const Entry &e) { return e.state != State::DONE; });
+    size_t live = std::count_if(entries.begin(), entries.end(), [](const Entry &e) { return e.state != State::FINISHED; });
     if (count == 0 || live >= cfg.maxEntries) {
         StatusFrame s;
         s.msgId = msg.msgId;
@@ -129,7 +129,7 @@ bool Outbox::nextFrame(uint32_t nowMs, Frame &out)
 
 void Outbox::finish(Entry &e, MsgState st, uint32_t node)
 {
-    e.state = State::DONE;
+    e.state = State::FINISHED;
     emit(e, st, node);
     if (e.persisted) {
         unparked.push_back({e.msg.origin, e.msg.msgId});
@@ -209,7 +209,7 @@ void Outbox::onCustody(uint32_t from, const NoticeFrame &n, uint32_t nowMs)
     (void)nowMs;
     for (auto &e : entries) {
         if (e.msg.msgId == n.msgId && e.msg.origin == n.origin && e.toCustodian && e.linkTo == from &&
-            e.state != State::DONE && e.state != State::PARKED) {
+            e.state != State::FINISHED && e.state != State::PARKED) {
             finish(e, MsgState::IN_CUSTODY, from);
             return;
         }
@@ -220,7 +220,7 @@ bool Outbox::onReceipt(const NoticeFrame &n, uint32_t nowMs)
 {
     (void)nowMs;
     for (auto &e : entries) {
-        if (e.msg.msgId == n.msgId && e.msg.origin == n.origin && e.state != State::DONE) {
+        if (e.msg.msgId == n.msgId && e.msg.origin == n.origin && e.state != State::FINISHED) {
             finish(e, MsgState::DELIVERED, n.dest);
             return true;
         }
@@ -258,7 +258,7 @@ void Outbox::tick(uint32_t nowMs)
             finish(e, MsgState::FAILED, 0);
         }
     }
-    entries.erase(std::remove_if(entries.begin(), entries.end(), [](const Entry &e) { return e.state == State::DONE; }),
+    entries.erase(std::remove_if(entries.begin(), entries.end(), [](const Entry &e) { return e.state == State::FINISHED; }),
                   entries.end());
     if (rr >= entries.size())
         rr = 0;
