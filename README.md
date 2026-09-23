@@ -22,6 +22,9 @@ OMP is documented so that other apps and firmwares can implement it:
 
 - [docs/omp/OMP-v1.md](docs/omp/OMP-v1.md): the protocol specification (frames, state machines, phone protocol, gateway API)
 - [docs/omp/IMPLEMENTING.md](docs/omp/IMPLEMENTING.md): how to implement it, with byte-exact test vectors
+- [oshi-mesh-protocol](https://github.com/Lastoneparis/oshi-mesh-protocol): the same specification under **CC BY 4.0**, with
+  reference codecs in C++ and Python under **MIT** (usable in MIT and closed projects, e.g. MeshCore) and machine-readable
+  test vectors
 
 > OSHI Mesh is an independent project. It is **not affiliated with or endorsed by Meshtastic LLC**. Meshtastic® is a
 > registered trademark of Meshtastic LLC. Almost all of the code in this repository is the work of the Meshtastic
