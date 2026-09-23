@@ -9,7 +9,7 @@
 [![Protocol: OMP v1](https://img.shields.io/badge/protocol-OMP%20v1-informational)](docs/omp/OMP-v1.md)
 
 **Install in one minute:** open <https://oshi-messenger.com/lora/flash/> in Chrome or Edge, plug your board in over USB,
-press *Connect*. 150 boards: 89 ESP32-family boards in the browser, 61 nRF52/RP2040 boards as `.uf2`.
+press *Connect*. 139 boards: 78 ESP32-family boards in the browser, 61 nRF52/RP2040 boards as `.uf2`.
 Binaries and checksums are also on the [releases page](https://github.com/Lastoneparis/oshi-mesh-firmware/releases/latest).
 
 OSHI Mesh is open-source LoRa firmware, **compatible with Meshtastic and MeshCore**. An OSHI node is a full member of a
@@ -172,7 +172,7 @@ gateway needs WiFi and is ESP32-only; everything else is platform-independent C+
 
 | Boards | Where | Status |
 | --- | --- | --- |
-| 89 ESP32-family boards (Heltec, LILYGO, RAK, Seeed, Elecrow, B&Q, M5Stack...) | [web flasher](https://oshi-messenger.com/lora/flash/) | released, built by public CI for every board |
+| 78 ESP32-family boards (Heltec, LILYGO, RAK, Seeed, Elecrow, B&Q, M5Stack...) | [web flasher](https://oshi-messenger.com/lora/flash/) | released, built by public CI for every board |
 | 61 nRF52840 / RP2040 / RP2350 boards | `.uf2` files on the same page | released, built by public CI for every board |
 | Heltec WiFi LoRa 32 V3 | - | also field-tested over the air |
 | STM32 (RAK3172, Wio-E5), nRF54L15 | see `variants/` | build, not released (need STM32CubeProgrammer / no .uf2) |
