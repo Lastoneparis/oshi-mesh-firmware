@@ -117,7 +117,7 @@ void drawFrameWiFi(OLEDDisplay *display, OLEDDisplayUiState *state, int16_t x, i
     snprintf(ssidStr, sizeof(ssidStr), "SSID: %s", wifiName);
     display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, ssidStr);
 
-    display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "URL: http://meshtastic.local");
+    display->drawString(x + BASEUI_BODY_LR_MARGIN, getTextPositions(display)[line++] + y, "URL: http://oshi-mesh.local");
 
     graphics::drawCommonFooter(display, x, y);
 

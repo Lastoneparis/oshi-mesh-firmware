@@ -90,7 +90,7 @@ static int32_t ethNetworkConnectedPoll()
             LOG_INFO("Ethernet IP changed (%u.%u.%u.%u), restarting mDNS", ip & 0xff, (ip >> 8) & 0xff, (ip >> 16) & 0xff,
                      (ip >> 24) & 0xff);
             MDNS.end();
-            if (MDNS.begin("Meshtastic")) {
+            if (MDNS.begin("oshi-mesh")) {
                 MDNS.addService("meshtastic", "tcp", SERVER_API_DEFAULT_PORT);
                 MDNS.addServiceTxt("meshtastic", "tcp", "shortname", String(owner.short_name));
                 MDNS.addServiceTxt("meshtastic", "tcp", "id", String(nodeDB->getNodeId().c_str()));
@@ -191,10 +191,10 @@ static void onNetworkConnected()
         LOG_INFO("Start network services");
 
         // start mdns
-        if (!MDNS.begin("Meshtastic")) {
+        if (!MDNS.begin("oshi-mesh")) {
             LOG_ERROR("mDNS setup failed");
         } else {
-            LOG_INFO("mDNS Host: Meshtastic.local");
+            LOG_INFO("mDNS Host: oshi-mesh.local");
             MDNS.addService("meshtastic", "tcp", SERVER_API_DEFAULT_PORT);
 // ESPmDNS (ESP32) and SimpleMDNS (RP2040) have slightly different APIs for adding TXT records
 #ifdef ARCH_ESP32
@@ -231,7 +231,7 @@ static void onNetworkConnected()
             }
             syslog.server(serverAddr, serverPort);
             syslog.deviceHostname(getDeviceName());
-            syslog.appName("Meshtastic");
+            syslog.appName("OSHI-Mesh");
             syslog.defaultPriority(LOGLEVEL_USER);
             syslog.enable();
         }
@@ -389,7 +389,7 @@ bool initWifi()
         if (*wifiName) {
             uint8_t dmac[6];
             getMacAddr(dmac);
-            snprintf(ourHost, sizeof(ourHost), "Meshtastic-%02x%02x", dmac[4], dmac[5]);
+            snprintf(ourHost, sizeof(ourHost), "OSHI-%02x%02x", dmac[4], dmac[5]);
 
             WiFi.mode(WIFI_STA);
             WiFi.setHostname(ourHost);

@@ -863,7 +863,7 @@ void handleAdmin(HTTPRequest *req, HTTPResponse *res)
     res->setHeader("Access-Control-Allow-Origin", "*");
     res->setHeader("Access-Control-Allow-Methods", "GET");
 
-    res->println("<h1>Meshtastic</h1>");
+    res->println("<h1>OSHI Mesh</h1>");
     //    res->println("<a href=/admin/settings>Settings</a><br>");
     //    res->println("<a href=/admin/fs>Manage Web Content</a><br>");
     res->println("<a href=/json/report>Device Report</a><br>");
@@ -875,7 +875,7 @@ void handleRestart(HTTPRequest *req, HTTPResponse *res)
     res->setHeader("Access-Control-Allow-Origin", "*");
     res->setHeader("Access-Control-Allow-Methods", "GET");
 
-    res->println("<h1>Meshtastic</h1>");
+    res->println("<h1>OSHI Mesh</h1>");
     res->println("Restarting");
 
     LOG_DEBUG("Restarted on HTTP(s) Request");

@@ -267,7 +267,7 @@ void portduinoCustomInit()
 #endif
         {0}};
     static void *childArguments;
-    static char doc[] = "Meshtastic native build.";
+    static char doc[] = "OSHI Mesh native build (Meshtastic-compatible).";
     static char args_doc[] = "...";
     static struct argp argp = {options, parse_opt, args_doc, doc, 0, 0, 0};
     const struct argp_child child = {&argp, OPTION_ARG_OPTIONAL, 0, 0};

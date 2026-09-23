@@ -364,8 +364,8 @@ int generate_self_signed_x509(EVP_PKEY *pkey, X509 **x509)
     if (!name)
         return -1;
     if (X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, (unsigned char *)"DE", -1, -1, 0) != 1 ||
-        X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (unsigned char *)"Meshtastic", -1, -1, 0) != 1 ||
-        X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char *)"meshtastic.local", -1, -1, 0) != 1 ||
+        X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, (unsigned char *)"OSHI Mesh", -1, -1, 0) != 1 ||
+        X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (unsigned char *)"oshi-mesh.local", -1, -1, 0) != 1 ||
         // Selfsigned, Issuer = Subject
         X509_set_subject_name(*x509, name) != 1 || X509_set_issuer_name(*x509, name) != 1) {
         X509_NAME_free(name);

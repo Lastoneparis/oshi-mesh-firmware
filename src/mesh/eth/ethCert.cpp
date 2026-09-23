@@ -128,7 +128,7 @@ static bool generateCert(IPAddress ip, EthCertMaterial &out)
         }
 
         // 2. Cert fields
-        String subjectName = "CN=" + ip.toString() + ",O=Meshtastic,C=US";
+        String subjectName = "CN=" + ip.toString() + ",O=OSHI Mesh,C=US";
         ret = mbedtls_x509write_crt_set_subject_name(&crt, subjectName.c_str());
         if (ret != 0) {
             LOG_ERROR("ETH CERT: set_subject_name failed -0x%04x", -ret);
