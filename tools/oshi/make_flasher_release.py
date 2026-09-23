@@ -163,6 +163,23 @@ def main():
     with open(os.path.join(out, "SHA256SUMS.txt"), "w") as f:
         for h, r in sorted(sums, key=lambda x: x[1]):
             f.write(f"{h}  {r}\n")
+    run_url = f"https://github.com/{a.repo}/actions/runs/{a.run_id}"
+    with open(os.path.join(out, "PROVENANCE.md"), "w") as f:
+        f.write(f"""# OSHI Mesh {version} - provenance
+
+- Source: https://github.com/{a.repo} at commit `{commit}` (the suffix of the version string).
+- Built by GitHub Actions, not on a developer's machine: {run_url}
+  Every file here is an artifact of that public run; the run lists the exact toolchain and inputs.
+- Base: the Meshtastic firmware (GPL-3.0), with the OSHI Mesh changes on top (`src/oshi/`, `src/modules/OshiModule.*`).
+- Boards: {len(targets)} ESP32-family boards (web flasher) and {len(uf2)} boards installed by .uf2 file.
+- No region is set: a freshly flashed node transmits nothing until its region is chosen.
+
+What the web flasher writes on an ESP32 board, with offsets from that build's own partition table (`.mt.json`):
+full install = erase, then the factory image at 0x0, the OTA loader at the second app partition and the filesystem at the
+spiffs partition; "keep my settings" = the app image alone at the first app partition, no erase.
+
+Check any file: `shasum -a 256 -c SHA256SUMS.txt`.
+""")
     print(f"version {version}: {len(targets)} ESP32 boards, {len(uf2)} UF2 boards, skipped {len(skipped)}: {', '.join(skipped)}")
 
 
