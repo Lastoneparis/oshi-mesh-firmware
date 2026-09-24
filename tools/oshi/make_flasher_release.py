@@ -107,7 +107,9 @@ def main():
     meta = board_metadata()
     targets, uf2, sums, version, skipped = [], [], [], None, []
 
-    excluded = set() if a.include_mui else mui_envs()
+    # The colour UI is published only once it is the OSHI-branded one (Lastoneparis/oshi-device-ui).
+    ours = "Lastoneparis/oshi-device-ui" in open(os.path.join(ROOT, "platformio.ini")).read()
+    excluded = set() if (a.include_mui or ours) else mui_envs()
     wanted = []
     for art in firmware:
         m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
