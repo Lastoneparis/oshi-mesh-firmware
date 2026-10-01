@@ -39,3 +39,13 @@ What OMP adds, and what it does not protect, is described in
 
 Reports that only restate these documented properties are not vulnerabilities, but reports that show them to be weaker than
 described are.
+
+## Encrypted reports (PGP)
+
+Encrypt sensitive reports to the OSHI project key and send them to **contact@oshi-messenger.com**:
+
+- Fingerprint: `9CEB A168 37CA 9FFE 024B  4671 2BE8 9080 B91F E733`
+- Key: [`oshi-project-key.asc`](oshi-project-key.asc) in this repository, or https://oshi-messenger.com/.well-known/pgp-key.txt
+
+The previous project key (`CC57 EFDF DD66 DF95 1F9C  8108 025F 383C DCCA 2600`, created 2026-09-08) is **revoked**.
+Do not encrypt to it: we can no longer read messages sent to that key.
