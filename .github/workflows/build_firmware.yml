@@ -27,6 +27,17 @@ jobs:
         with:
           submodules: recursive
 
+      # ubuntu-latest, which is what this fork builds on (upstream uses its own 'arctastic' pool and
+      # never sees this), now ships a Python that PlatformIO's SCons cannot load: every ESP32 link
+      # step dies with "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'". Nothing in
+      # the tree changed -- the runner image moved underneath it, which is why the full matrix has
+      # failed every day since 2026-10-11. Reproduced away from CI: identical error under Python
+      # 3.12, clean build of heltec-v4-r8-oled under 3.11. Pin it until PlatformIO's SCons catches up.
+      - name: Pin Python for PlatformIO's SCons
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
       - name: Build ${{ inputs.platform }}
         id: build
         # Pinned, not @main: the action's 2026-10-10 PIO/SCons changes (#72 "Install PIO with uv,
