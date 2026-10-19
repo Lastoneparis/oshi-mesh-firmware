@@ -27,27 +27,9 @@ jobs:
         with:
           submodules: recursive
 
-      # ubuntu-latest, which is what this fork builds on (upstream uses its own 'arctastic' pool and
-      # never sees this), now ships a Python that PlatformIO's SCons cannot load: every ESP32 link
-      # step dies with "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'". Nothing in
-      # the tree changed -- the runner image moved underneath it, which is why the full matrix has
-      # failed every day since 2026-10-11. Reproduced away from CI: identical error under Python
-      # 3.12, clean build of heltec-v4-r8-oled under 3.11. Pin it until PlatformIO's SCons catches up.
-      - name: Pin Python for PlatformIO's SCons
-        uses: actions/setup-python@v7
-        with:
-          python-version: "3.11"
-
       - name: Build ${{ inputs.platform }}
         id: build
-        # Pinned, not @main: the action's 2026-10-10 PIO/SCons changes (#72 "Install PIO with uv,
-        # enforce constraints", and dropping the explicit scons cache on ESP32) break every ESP32
-        # build here with "ModuleNotFoundError: No module named 'SCons.Tool.FortranCommon'" at the
-        # link step. The full matrix has failed every day since 2026-10-11 on unchanged code, so no
-        # release has been buildable since. f06a3dcf is the last revision that built this tree, and
-        # it takes the same three inputs. Reproduced locally: the same error appears under Python
-        # 3.12 and disappears under 3.11.
-        uses: meshtastic/gh-action-firmware@f06a3dcfbcd7c55f3373396c4254339d537cfa1f
+        uses: meshtastic/gh-action-firmware@main
         with:
           pio_platform: ${{ inputs.platform }}
           pio_env: ${{ inputs.pio_env }}
