@@ -54,6 +54,8 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     // Whether we can take a whole message of `count` fragments in this role before acknowledging it.
     bool canHold(RxMode mode, uint8_t count) const;
     void askForKey(uint32_t node, uint32_t now);
+    // A frame meant for us alone that arrives without PKI proves its sender holds no key of ours.
+    bool senderLacksOurKey(const meshtastic_MeshPacket &mp, oshi::FrameType t, uint32_t self) const;
     // persist=false when the message is already in the inbox (restored at boot).
     void deliverToPhone(const oshi::Message &msg, bool persist = true);
     void statusToPhone(const oshi::StatusFrame &s);
@@ -100,6 +102,7 @@ class OshiModule : public MeshModule, private concurrency::OSThread
     oshi::CustodySet inbox{16 * 1024};
     bool inboxDirty = false;
     uint32_t lastInboxSaveMs = 0;
+    uint32_t lastAirHoldMs = 0;
     std::deque<PhoneFrame> phonePending;
     size_t phonePendingBytes = 0;
 };

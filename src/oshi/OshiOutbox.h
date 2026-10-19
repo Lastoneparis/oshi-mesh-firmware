@@ -59,6 +59,8 @@ class Outbox
     std::vector<std::pair<uint32_t, uint32_t>> drainUnparked();
 
     size_t size() const { return entries.size(); }
+    // How many entries have a fragment ready to go, i.e. are held up rather than idle or finished.
+    size_t sendableCount() const;
     bool isParked(uint32_t origin, uint32_t msgId) const;
 
   private:

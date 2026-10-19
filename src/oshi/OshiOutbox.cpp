@@ -89,6 +89,15 @@ void Outbox::startRound(Entry &e, uint32_t nowMs)
     e.state = e.pending ? State::SENDING : State::AWAIT_ACK;
 }
 
+size_t Outbox::sendableCount() const
+{
+    size_t n = 0;
+    for (const Entry &e : entries)
+        if (e.state == State::SENDING && e.pending)
+            n++;
+    return n;
+}
+
 bool Outbox::nextFrame(uint32_t nowMs, Frame &out)
 {
     if (anyTx && nowMs - lastTxMs < cfg.paceMs)

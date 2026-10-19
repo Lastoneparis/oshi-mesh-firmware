@@ -46,6 +46,11 @@ constexpr uint32_t PULL_FOLLOWUP_MS = 30 * 1000;
 constexpr uint32_t BEACON_INTERVAL_MS = 15 * 60 * 1000;
 constexpr uint32_t FIRST_BEACON_MS = 45 * 1000;
 constexpr uint16_t OMP_IMPL_VERSION = (OMP_VERSION << 8) | 0;
+// How often to say the queue is held by the airtime budget; one line a minute, not one a tick.
+constexpr uint32_t AIR_HOLD_LOG_MIN_MS = 60 * 1000;
+// Retry a key push in minutes, not the half hour the routine announcement uses: the point is to close a
+// one-sided key gap in about a round trip, and NodeInfoModule will not send one more often than every 60 s.
+constexpr uint32_t KEY_ASK_MIN_MS = 2 * 60 * 1000;
 constexpr int32_t TICK_MS = 250;
 constexpr size_t PHONE_PENDING_MAX = 24 * 1024;
 // Slots left in the phone queue for ordinary traffic (text, routing, node info) while OMP drains.
@@ -180,14 +185,30 @@ bool OshiModule::canHold(RxMode mode, uint8_t count) const
 void OshiModule::askForKey(uint32_t node, uint32_t now)
 {
     auto it = keyAskedMs.find(node);
-    if (it != keyAskedMs.end() && now - it->second < 30UL * 60 * 1000)
+    if (it != keyAskedMs.end() && now - it->second < KEY_ASK_MIN_MS)
         return;
     if (keyAskedMs.size() > 64)
         keyAskedMs.clear();
-    keyAskedMs[node] = now;
     // Its NodeInfo carries its public key; without it every unicast to that node degrades to a broadcast.
-    if (nodeInfoModule)
-        nodeInfoModule->sendOurNodeInfo(node, true, 0);
+    // shorterTimeout, because this is an urgent implicit request rather than the routine announcement: it cuts
+    // NodeInfoModule's own suppression window from 30 min (scaled up by mesh size) to 60 s and lifts the packet
+    // off BACKGROUND priority. Without it a node that announced itself minutes ago silently sends nothing, and
+    // the key never arrives. Measured: every push from a freshly booted node was dropped this way.
+    // Record the attempt only once one actually went out, or a suppressed send burns our own back-off too.
+    if (nodeInfoModule && nodeInfoModule->sendOurNodeInfo(node, true, 0, true))
+        keyAskedMs[node] = now;
+}
+
+bool OshiModule::senderLacksOurKey(const meshtastic_MeshPacket &mp, FrameType t, uint32_t self) const
+{
+    // transmit() broadcasts whenever it cannot address the peer, so a frame aimed at us alone that arrives
+    // channel-encrypted says its sender had no key of ours. BEACONs are broadcast by design and say nothing.
+    if (mp.pki_encrypted || mp.from == self || t == FrameType::BEACON || t == FrameType::STATUS)
+        return false;
+    if (t != FrameType::DATA)
+        return true;
+    DataFrame f;
+    return decodeData(mp.decoded.payload.bytes, mp.decoded.payload.size, f) && f.dest == self;
 }
 
 bool OshiModule::controlFrameTrusted(const meshtastic_MeshPacket &mp) const
@@ -217,6 +238,14 @@ void OshiModule::handleOmp(const meshtastic_MeshPacket &mp)
     FrameType t;
     if (!frameType(b, n, t) || !forUs)
         return;
+
+    // Our own unicasts to a peer holding no key of ours are encrypted to it and dropped undecrypted, so the
+    // exchange dies in that direction until its NodeInfo comes round (nodeInfoBroadcastSecs, 3 h by default).
+    // Sending ours the moment we can see the gap closes it in one round trip instead.
+    if (peerUsesPki(mp.from) && senderLacksOurKey(mp, t, self)) {
+        LOG_INFO("OSHI: 0x%08x holds no key of ours, sending our NodeInfo so it can decrypt what we send", mp.from);
+        askForKey(mp.from, now);
+    }
 
     switch (t) {
     case FrameType::DATA: {
@@ -627,6 +656,12 @@ int32_t OshiModule::runOnce()
         Outbox::Frame f;
         if (outbox.nextFrame(now, f))
             transmit(f.linkTo, f.bytes, f.len, f.wantAck);
+    } else if (size_t held = outbox.sendableCount(); held && Throttle::hasElapsed(lastAirHoldMs, AIR_HOLD_LOG_MIN_MS)) {
+        // Otherwise the queue just stops: the phone keeps showing QUEUED, nothing goes out and nothing says
+        // why, which reads as a lost message instead of a regional airtime pause that clears on its own.
+        lastAirHoldMs = now;
+        LOG_WARN("OSHI: airtime budget spent (TX %.1f%%), %u message(s) held until it decays",
+                 airTime->utilizationTXPercent(), unsigned(held));
     }
     processOutboxEvents();
     pumpPhone();
