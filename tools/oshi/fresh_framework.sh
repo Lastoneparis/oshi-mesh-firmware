@@ -55,7 +55,7 @@ hashof() { shasum -a 256 "$1" | cut -c1-16; }
 
 mkdir -p "$PRISTINE" "$WORK/buildlogs"
 
-if [[ "$mode" = snapshot ]]; then
+if [[ $mode == snapshot ]]; then
 	for p in $pkgs; do
 		[[ -d "$PKG/$p" ]] || {
 			echo "FRESH-FAIL $arch ($p is not installed)"
@@ -73,7 +73,7 @@ if [[ "$mode" = snapshot ]]; then
 	exit 0
 fi
 
-if [[ "$mode" = drift ]]; then
+if [[ $mode == drift ]]; then
 	rc=0
 	for p in $pkgs; do
 		[[ -f "$PRISTINE/$p.manifest" ]] || {
@@ -95,7 +95,7 @@ for p in $pkgs; do
 	if [[ ! -f "$PRISTINE/$p.tar.zst" ]] || [[ ! -f "$PRISTINE/$p.manifest" ]]; then
 		# No snapshot yet: wipe, let PlatformIO install, snapshot before any build touches it.
 		env0=$(awk -v a="$arch" -F'\t' '!/^#/ && NF>=2 && $2==a {print $1; exit}' "$BOARDS")
-		[[ -n "$env0" ]] || {
+		[[ -n $env0 ]] || {
 			echo "FRESH-FAIL $arch (no env of that arch in $BOARDS)"
 			exit 1
 		}
@@ -112,7 +112,7 @@ for p in $pkgs; do
 	want=$(hashof "$PRISTINE/$p.manifest")
 	have=""
 	[[ -d "$PKG/$p" ]] && have=$(manifest "$p" | shasum -a 256 | cut -c1-16)
-	if [[ "$have" = "$want" ]]; then
+	if [[ $have == "$want" ]]; then
 		echo "FRESH-OK $p already pristine ($want)"
 		continue
 	fi
@@ -127,7 +127,7 @@ for p in $pkgs; do
 			exit 1
 		}
 	now=$(manifest "$p" | shasum -a 256 | cut -c1-16)
-	[[ "$now" = "$want" ]] || {
+	[[ $now == "$want" ]] || {
 		echo "FRESH-FAIL $arch ($p restored to $now, expected $want)"
 		exit 1
 	}

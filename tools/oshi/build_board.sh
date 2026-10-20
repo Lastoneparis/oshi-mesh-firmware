@@ -18,14 +18,14 @@ cd "$REPO" || exit 9
 
 # The trailing [0-9] matters: firmware-*-"$env"-* also matches LONGER env names, so
 # "tbeam" matched "tbeam-s3-core" and three boards were silently never built.
-if [[ "${OSHI_REBUILD:-0}" != 1 ]] && ls "$WORK"/stage/firmware-*-"$env"-[0-9]* >/dev/null 2>&1; then
+if [[ ${OSHI_REBUILD:-0} != 1 ]] && ls "$WORK"/stage/firmware-*-"$env"-[0-9]* >/dev/null 2>&1; then
 	echo "SKIP $env (already staged)"
 	exit 0
 fi
-[[ "${OSHI_REBUILD:-0}" = 1 ]] && rm -rf "$WORK"/stage/firmware-*-"$env"-[0-9]*
+[[ ${OSHI_REBUILD:-0} == 1 ]] && rm -rf "$WORK"/stage/firmware-*-"$env"-[0-9]*
 
 free=$(df -g / | tail -1 | awk '{print $4}')
-if [[ "${free:-0}" -lt "$MIN_FREE_GB" ]]; then
+if [[ ${free:-0} -lt $MIN_FREE_GB ]]; then
 	echo "ABORT_DISK $env (${free}GB free)"
 	exit 8
 fi
@@ -46,7 +46,7 @@ for f in "$bd"/*; do
 	ver="${BASH_REMATCH[2]}"
 	break
 done
-if [[ -z "$ver" ]]; then
+if [[ -z $ver ]]; then
 	echo "NOVER $env"
 	rm -rf "$bd"
 	exit 2
@@ -58,7 +58,7 @@ mkdir -p "$dest"
 # symbols per board.
 for f in "$bd"/firmware-$env-$ver.bin "$bd"/firmware-$env-$ver.factory.bin "$bd"/firmware-$env-$ver.uf2 \
 	"$bd"/firmware-$env-$ver.hex "$bd"/littlefs-$env-$ver.bin "$bd"/*.mt.json; do
-	[[ -f "$f" ]] && cp -p "$f" "$dest/"
+	[[ -f $f ]] && cp -p "$f" "$dest/"
 done
 rm -rf "$bd"
 # libdeps is per-env and ~150 MB a board, so a 150-board run quietly ate 11 GB while only

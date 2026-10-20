@@ -30,7 +30,7 @@ fi
 
 total=0
 for g in $groups; do total=$((total + $(boards_of "$g" | grep -c .))); done
-[[ "$total" -gt 0 ]] || {
+[[ $total -gt 0 ]] || {
 	echo "no boards for: $groups (in $BOARDS)"
 	exit 1
 }
