@@ -12,7 +12,12 @@ Loaders are read from <stage>/../ota; build_matrix.sh fetches them from the same
 CI uses, so the blob tracks upstream rather than the firmware version - the same caveat CI has.
 """
 
-import glob, hashlib, json, os, re, sys
+import glob
+import hashlib
+import json
+import os
+import re
+import sys
 
 PICK = {
     "esp32": "mt-esp32-ota.bin",
@@ -38,7 +43,7 @@ os.makedirs(ota, exist_ok=True)
 
 
 def loader(name):
-    """The loader file, or a clear instruction to fetch it. build_matrix.sh does that for CI."""
+    """Return the loader's path, or exit naming the command that fetches it (build_matrix.sh does that for CI)."""
     path = os.path.join(ota, name)
     if not os.path.exists(path) or os.path.getsize(path) == 0:
         sys.exit(f"missing {path}\n  fetch it: curl -fsSL -o {path} {URL[name]}")

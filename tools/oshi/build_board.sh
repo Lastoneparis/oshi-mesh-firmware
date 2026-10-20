@@ -7,7 +7,8 @@
 # A board already staged is skipped so a stopped matrix can be relaunched; OSHI_REBUILD=1
 # forces one.
 set -u
-env="${1:?usage: build_board.sh <env> <arch>}"; arch="${2:?}"
+env="${1:?usage: build_board.sh <env> <arch>}"
+arch="${2:?}"
 REPO=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 WORK="${OSHI_WORK:-$HOME/.oshi-build}"
 PIO="${PIO:-pio}"
@@ -17,29 +18,47 @@ cd "$REPO" || exit 9
 
 # The trailing [0-9] matters: firmware-*-"$env"-* also matches LONGER env names, so
 # "tbeam" matched "tbeam-s3-core" and three boards were silently never built.
-if [ "${OSHI_REBUILD:-0}" != 1 ] && ls "$WORK"/stage/firmware-*-"$env"-[0-9]* >/dev/null 2>&1; then
-  echo "SKIP $env (already staged)"; exit 0
+if [[ "${OSHI_REBUILD:-0}" != 1 ]] && ls "$WORK"/stage/firmware-*-"$env"-[0-9]* >/dev/null 2>&1; then
+	echo "SKIP $env (already staged)"
+	exit 0
 fi
-[ "${OSHI_REBUILD:-0}" = 1 ] && rm -rf "$WORK"/stage/firmware-*-"$env"-[0-9]*
+[[ "${OSHI_REBUILD:-0}" = 1 ]] && rm -rf "$WORK"/stage/firmware-*-"$env"-[0-9]*
 
 free=$(df -g / | tail -1 | awk '{print $4}')
-if [ "${free:-0}" -lt "$MIN_FREE_GB" ]; then echo "ABORT_DISK $env (${free}GB free)"; exit 8; fi
+if [[ "${free:-0}" -lt "$MIN_FREE_GB" ]]; then
+	echo "ABORT_DISK $env (${free}GB free)"
+	exit 8
+fi
 
-if ! "$PIO" run -e "$env" > "$WORK/buildlogs/$env.log" 2>&1; then
-  echo "FAIL $env"; rm -rf ".pio/build/$env"; exit 1
+if ! "$PIO" run -e "$env" >"$WORK/buildlogs/$env.log" 2>&1; then
+	echo "FAIL $env"
+	rm -rf ".pio/build/$env"
+	exit 1
 fi
 
 bd=".pio/build/$env"
-ver=$(ls "$bd" 2>/dev/null | grep -oE "$env-[0-9]+\.[0-9]+\.[0-9]+\.[0-9a-f]+" | head -1 | sed "s/^$env-//")
-if [ -z "$ver" ]; then echo "NOVER $env"; rm -rf "$bd"; exit 2; fi
+# PlatformIO names these firmware-<env>-<ver>.<ext>, so match the env anywhere in the name,
+# not as a prefix. Quoting "$env" keeps it a literal rather than a regex.
+ver=""
+for f in "$bd"/*; do
+	b=${f##*/}
+	[[ $b =~ (^|-)"$env"-([0-9]+\.[0-9]+\.[0-9]+\.[0-9a-f]+) ]] || continue
+	ver="${BASH_REMATCH[2]}"
+	break
+done
+if [[ -z "$ver" ]]; then
+	echo "NOVER $env"
+	rm -rf "$bd"
+	exit 2
+fi
 
 dest="$WORK/stage/firmware-$arch-$env-$ver"
 mkdir -p "$dest"
 # Everything a flasher writes, plus the partition table. Never the .elf: 20-50 MB of debug
 # symbols per board.
 for f in "$bd"/firmware-$env-$ver.bin "$bd"/firmware-$env-$ver.factory.bin "$bd"/firmware-$env-$ver.uf2 \
-         "$bd"/firmware-$env-$ver.hex "$bd"/littlefs-$env-$ver.bin "$bd"/*.mt.json; do
-  [ -f "$f" ] && cp -p "$f" "$dest/"
+	"$bd"/firmware-$env-$ver.hex "$bd"/littlefs-$env-$ver.bin "$bd"/*.mt.json; do
+	[[ -f "$f" ]] && cp -p "$f" "$dest/"
 done
 rm -rf "$bd"
 # libdeps is per-env and ~150 MB a board, so a 150-board run quietly ate 11 GB while only

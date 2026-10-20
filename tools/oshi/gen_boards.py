@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Emit "<env>\t<mcu>" for every env in platformio.ini: the architecture groups the matrix uses.
+r"""Emit "<env>\t<mcu>" for every env in platformio.ini: the architecture groups the matrix uses.
 
 Reads PlatformIO's OWN resolved config (`pio project config --json-output`) rather than
 parsing platformio.ini, which only pulls the envs in through extra_configs. board -> mcu
 comes from the installed platforms' board JSON, then the repo's boards/ directory.
 """
 
-import glob, json, os, sys
+import glob
+import json
+import os
+import sys
 
 cfg_json, repo = sys.argv[1], (sys.argv[2] if len(sys.argv) > 2 else ".")
 board_mcu, unreadable = {}, []
