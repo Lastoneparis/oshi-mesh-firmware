@@ -14,7 +14,7 @@ What it asserts, all observable on the wire and nothing guessed about radio beha
   1. the stream API frames correctly and want_config_id is answered by a matching config_complete_id
   2. my_info arrives and carries a node number
   3. a text message to broadcast is accepted (frames out without the link dropping)
-  4. AdminMessage.exit_simulator makes the process exit - which is what the CI step then verifies
+  4. AdminMessage.exit_simulator makes the process exit, observed as the daemon closing the link
 """
 
 import argparse
@@ -100,6 +100,23 @@ class Stream:
         except OSError:
             pass
 
+    def wait_for_close(self, timeout):
+        """Block until the peer closes the link, and say how; None if it never does."""
+        deadline = time.time() + timeout
+        self.sock.settimeout(1.0)
+        while time.time() < deadline:
+            try:
+                if not self.sock.recv(4096):
+                    self.close()
+                    return "link closed"
+            except socket.timeout:
+                continue
+            except OSError:
+                self.close()
+                return "link reset"
+        self.close()
+        return None
+
 
 def data_packet(portnum, payload, to, want_ack=False):
     pkt = mesh_pb2.MeshPacket(to=to, id=secrets.randbits(32), want_ack=want_ack)
@@ -113,6 +130,12 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=4403)
     ap.add_argument("--timeout", type=float, default=30.0)
+    ap.add_argument(
+        "--exit-timeout",
+        type=float,
+        default=20.0,
+        help="seconds to wait for the simulator to close the link after exit_simulator",
+    )
     a = ap.parse_args()
 
     s = Stream(a.host, a.port, a.timeout)
@@ -163,7 +186,19 @@ def main():
         data_packet(portnums_pb2.PortNum.ADMIN_APP, admin.SerializeToString(), my_num)
     )
     print("ok exit_simulator sent")
-    s.close()
+
+    # Do not close here. The daemon's PhoneAPI closes the API service the moment it notices
+    # the client has gone ("TCP client disconnected before write") and drops whatever it has
+    # not read yet, so closing right after the write loses the admin frame: CI saw the text
+    # message handled, no "Exiting simulator", and the process still alive. The process
+    # exiting is what closes this socket, so EOF here is the wire proof that it did.
+    waited = s.wait_for_close(a.exit_timeout)
+    if waited is None:
+        sys.exit(
+            f"FAIL: link still open {a.exit_timeout:.0f}s after exit_simulator; "
+            "the simulator did not exit"
+        )
+    print(f"ok simulator exited ({waited})")
 
 
 if __name__ == "__main__":
