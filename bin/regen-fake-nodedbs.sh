@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # 1) Make sure the Python protobuf bindings exist (in-tree generation; .gitignored).
-if [[ ! -d bin/_generated/meshtastic ]]; then
+if [[ ! -d bin/_generated/meshtastic_v25 ]]; then
     echo "regenerating Python protobuf bindings (one-time)..."
     ./bin/regen-py-protos.sh
 fi

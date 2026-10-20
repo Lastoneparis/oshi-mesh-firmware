@@ -16,10 +16,17 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if ! command -v protoc >/dev/null 2>&1; then
-    echo "ERROR: protoc not found in PATH." >&2
+# grpcio-tools carries its own protoc, and it is already a pinned dependency, so CI does not
+# need the system compiler just to generate these bindings.
+if command -v protoc >/dev/null 2>&1; then
+    PROTOC=(protoc)
+elif "${PYTHON:-python3}" -c "import grpc_tools.protoc" >/dev/null 2>&1; then
+    PROTOC=("${PYTHON:-python3}" -m grpc_tools.protoc)
+else
+    echo "ERROR: no protoc available." >&2
     echo "  macOS: brew install protobuf" >&2
     echo "  Ubuntu/Debian: apt install protobuf-compiler" >&2
+    echo "  or: pip install grpcio-tools" >&2
     exit 1
 fi
 
@@ -31,7 +38,7 @@ mkdir -p "$OUT"
 
 # 1) Generate from the in-tree protos. nanopb.proto first so its descriptor
 #    is available for the [(nanopb).*] options on other messages.
-protoc \
+"${PROTOC[@]}" \
     --proto_path=protobufs \
     --python_out="$OUT" \
     protobufs/nanopb.proto \
