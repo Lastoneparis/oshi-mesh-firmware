@@ -98,11 +98,16 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--jobs", type=int, default=6, help="artifacts downloaded in parallel")
     ap.add_argument("--include-mui", action="store_true", help="also publish builds with the Meshtastic-branded colour UI")
+    ap.add_argument("--local", default="", help="publish from a directory of locally built firmware-<arch>-<env>-<ver> "
+                                                "folders instead of a CI run; pass 'local' as RUN_ID")
     a = ap.parse_args()
     only = set(filter(None, a.only.split(",")))
 
-    names = subprocess.run(["gh", "api", f"repos/{a.repo}/actions/runs/{a.run_id}/artifacts", "--paginate", "-q",
-                            ".artifacts[].name"], capture_output=True, text=True, check=True).stdout.split()
+    if a.local:
+        names = sorted(os.listdir(a.local))
+    else:
+        names = subprocess.run(["gh", "api", f"repos/{a.repo}/actions/runs/{a.run_id}/artifacts", "--paginate", "-q",
+                                ".artifacts[].name"], capture_output=True, text=True, check=True).stdout.split()
     firmware = sorted(n for n in names if n.startswith("firmware-"))
     meta = board_metadata()
     targets, uf2, sums, version, skipped = [], [], [], None, []
@@ -118,7 +123,7 @@ def main():
                 skipped.append(f"{m.group(2)} (Meshtastic colour UI)")
                 continue
             wanted.append(art)
-    cache = tempfile.mkdtemp(prefix="oshi-artifacts-")
+    cache = a.local or tempfile.mkdtemp(prefix="oshi-artifacts-")
 
     def fetch(art):
         d = os.path.join(cache, art)
@@ -135,13 +140,14 @@ def main():
             os.remove(elf)
         return art
 
-    try:
-        with ThreadPoolExecutor(max_workers=a.jobs) as pool:
-            for done in pool.map(fetch, wanted):
-                print(f"fetched {done}", flush=True)
-    except BaseException:
-        shutil.rmtree(cache, ignore_errors=True)  # a few GB of artifacts must not outlive a failed run
-        raise
+    if not a.local:
+        try:
+            with ThreadPoolExecutor(max_workers=a.jobs) as pool:
+                for done in pool.map(fetch, wanted):
+                    print(f"fetched {done}", flush=True)
+        except BaseException:
+            shutil.rmtree(cache, ignore_errors=True)  # a few GB of artifacts must not outlive a failed run
+            raise
 
     for art in wanted:
         m = re.match(r"firmware-([a-z0-9]+)-(.+)-(\d+\.\d+\.\d+\.[0-9a-f]+)$", art)
@@ -212,7 +218,8 @@ def main():
                                        "bytes": os.path.getsize(src), "sha256": sha(src)}})
         print(f"ok {env}", flush=True)
 
-    shutil.rmtree(cache, ignore_errors=True)
+    if not a.local:  # a local staging directory is the caller's, not ours to delete
+        shutil.rmtree(cache, ignore_errors=True)
     if not version:
         sys.exit("no firmware artifacts")
     commit = version.rsplit(".", 1)[1]
@@ -231,12 +238,19 @@ def main():
         for h, r in sorted(sums, key=lambda x: x[1]):
             f.write(f"{h}  {r}\n")
     run_url = f"https://github.com/{a.repo}/actions/runs/{a.run_id}"
+    if a.local:
+        built_by = ("""- Built locally, not by GitHub Actions. Every board was compiled on the maintainer's machine from the commit
+  above, with Python 3.11 and PlatformIO 6.1.19, one board at a time; the unified OTA loaders are the same
+  public builds CI uses. This branch has no board-matrix CI run of its own, which is why there is no run URL
+  to point at here. Verify any file against SHA256SUMS.txt below; the source is public, so a build from that
+  commit can be reproduced independently.""")
+    else:
+        built_by = (f"""{built_by}""")
     with open(os.path.join(out, "PROVENANCE.md"), "w") as f:
         f.write(f"""# OSHI Mesh {version} - provenance
 
 - Source: https://github.com/{a.repo} at commit `{commit}` (the suffix of the version string).
-- Built by GitHub Actions, not on a developer's machine: {run_url}
-  Every file here is an artifact of that public run; the run lists the exact toolchain and inputs.
+{built_by}
 - License: GPL-3.0. Compatible with Meshtastic and MeshCore. The source of this exact version, with its license and
   credits, is at the link above; the OSHI Mesh code lives in `src/oshi/` and `src/modules/OshiModule.*`.
 - Boards: {len(targets)} ESP32-family boards (web flasher) and {len(uf2)} boards installed by .uf2 file.
