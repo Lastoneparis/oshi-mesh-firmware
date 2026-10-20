@@ -54,7 +54,16 @@ for g in $groups; do
 done
 
 # Without this a locally assembled release omits the OTA loader CI writes to the second app
-# partition, and nothing says so.
+# partition, and nothing says so. Same "latest" releases CI pulls from, so the loader tracks
+# upstream rather than the firmware version - the same caveat CI has.
+mkdir -p "$WORK/ota"
+fetch_ota() { # <file> <url>
+  [ -s "$WORK/ota/$1" ] && return 0
+  curl -fsSL -o "$WORK/ota/$1" "$2" || { echo "### WARNING: could not fetch $1" >> "$RES"; return 1; }
+}
+fetch_ota mt-esp32-ota.bin   https://github.com/meshtastic/esp32-unified-ota/releases/latest/download/mt-esp32-ota.bin
+fetch_ota mt-esp32s3-ota.bin https://github.com/meshtastic/esp32-unified-ota/releases/latest/download/mt-esp32s3-ota.bin
+fetch_ota bleota-c3.bin      https://github.com/meshtastic/firmware-ota/releases/latest/download/firmware-c3.bin
 python3 "$HERE/inject_ota.py" "$WORK/stage" >> "$RES" 2>&1 || echo "### WARNING: inject_ota.py failed" >> "$RES"
 
 echo "### DONE staged=$(ls "$WORK/stage" | wc -l | tr -d ' ') ok=$(grep -c ' OK ' "$RES") skip=$(grep -c ' SKIP ' "$RES") fail=$(grep -c ' FAIL ' "$RES")" >> "$RES"
